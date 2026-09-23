@@ -5,12 +5,14 @@ from flask import Flask, render_template, request, redirect, session, flash, Blu
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError, generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import urllib.request
 import threading
 import webbrowser
 import mysql.connector
+from translations import ARABIC_TO_ENGLISH
 
 try:
     from dotenv import load_dotenv
@@ -640,8 +642,21 @@ def inject_user_data():
     user = session.get("user")
     low_stock_count = 0
     low_stock_items = []
+    profile_image_filename = None
+    user_profile = {
+        "full_name": user or "",
+        "username": user or "",
+        "email": "",
+        "role_name": "مستخدم",
+        "last_login_at": None,
+    }
 
     if user:
+        safe_username = secure_filename(str(user)) or "user"
+        image_dir = Path(app.static_folder) / "images"
+        for image_path in image_dir.glob(f"profile_{safe_username}.*"):
+            profile_image_filename = f"images/{image_path.name}"
+            break
         conn = None
         try:
             conn = get_db_connection()
@@ -655,6 +670,15 @@ def inject_user_data():
             """)
             low_stock_items = cur.fetchall() or []
             low_stock_count = len(low_stock_items)
+            cur.execute("""
+                SELECT u.full_name, u.username, u.email, u.last_login_at,
+                       COALESCE(r.name, 'مستخدم') AS role_name
+                FROM users u
+                LEFT JOIN roles r ON r.id = u.role_id
+                WHERE u.username=%s
+                LIMIT 1
+            """, (user,))
+            user_profile = cur.fetchone() or user_profile
             cur.close()
         except Exception as e:
             print(f"Low stock query error: {e}")
@@ -667,9 +691,12 @@ def inject_user_data():
 
     return {
         "user": user,
+        "current_language": session.get("language", "ar"),
         "user_permissions": get_user_permissions(),
         "low_stock_count": low_stock_count,
-        "low_stock_items": low_stock_items
+        "low_stock_items": low_stock_items,
+        "user_profile": user_profile,
+        "profile_image_filename": profile_image_filename
     }
 
 
@@ -682,7 +709,7 @@ def enforce_permission_checks():
         return None
 
     allowed_without_permission = {
-        '/', '/logout', '/dev-login', '/dashboard', '/search'
+        '/', '/logout', '/dev-login', '/dashboard', '/search', '/set-language'
     }
     if request.path in allowed_without_permission:
         return None
@@ -767,6 +794,20 @@ def enforce_permission_checks():
         return redirect('/dashboard')
 
     return None
+
+
+@app.after_request
+def translate_html_response(response):
+    if session.get('language', 'ar') != 'en':
+        return response
+    if not response.content_type or 'text/html' not in response.content_type:
+        return response
+
+    page = response.get_data(as_text=True)
+    for arabic, english in sorted(ARABIC_TO_ENGLISH.items(), key=lambda item: len(item[0]), reverse=True):
+        page = page.replace(arabic, english)
+    response.set_data(page)
+    return response
 
 
 # ======================
@@ -1198,6 +1239,39 @@ def toggle_user_status(user_id):
         conn.close()
 
     return redirect('/roles')
+
+
+@app.route('/set-language', methods=['POST'])
+def set_language():
+    language = request.form.get('language', 'ar')
+    session['language'] = language if language in {'ar', 'en'} else 'ar'
+    return redirect(request.referrer or '/dashboard')
+
+
+@app.route('/profile/avatar', methods=['POST'])
+def upload_profile_avatar():
+    if not session.get('user'):
+        return redirect('/')
+
+    avatar = request.files.get('avatar')
+    extension = Path(avatar.filename or '').suffix.lower() if avatar else ''
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+    if not avatar or not avatar.filename or extension not in allowed_extensions:
+        flash('اختر صورة بصيغة JPG أو PNG أو WEBP أو GIF.', 'warning')
+        return redirect(request.referrer or '/dashboard')
+
+    safe_username = secure_filename(str(session['user'])) or 'user'
+    image_dir = Path(app.static_folder) / 'images'
+    image_dir.mkdir(parents=True, exist_ok=True)
+    for old_image in image_dir.glob(f'profile_{safe_username}.*'):
+        try:
+            old_image.unlink()
+        except OSError:
+            pass
+
+    avatar.save(image_dir / f'profile_{safe_username}{extension}')
+    flash('تم تحديث صورة البروفايل بنجاح.', 'success')
+    return redirect(request.referrer or '/dashboard')
 
 
 @app.route("/dashboard")
@@ -4625,10 +4699,6 @@ def ensure_customs_status_enum():
     except Exception as exc:
         print(f"Database warning/error: {exc}")
         pass
-
-
-    ensure_customs_declaration_columns()
-    ensure_customs_status_enum()
 
 
 @app.route('/customs-management/new', methods=['GET', 'POST'])

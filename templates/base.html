@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="{{ current_language or 'ar' }}" dir="{{ 'ltr' if current_language == 'en' else 'rtl' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -119,6 +119,17 @@
         .sidebar a i { min-width: 20px; text-align: center; }
         .sidebar .section-title { padding: 14px 22px 8px; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
         .sidebar hr { border-color: rgba(255,255,255,.08); margin: 16px 0; }
+        .profile-card { display: flex; align-items: center; gap: 10px; min-width: 280px; padding: 7px 10px; border: 1px solid #dbe5f2; border-right: 3px solid #2563eb; border-radius: 14px; background: linear-gradient(135deg, #ffffff, #eff6ff); box-shadow: 0 5px 16px rgba(15, 23, 42, .09); transition: transform .2s ease, box-shadow .2s ease; }
+        .profile-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(37, 99, 235, .16); }
+        .profile-avatar { width: 42px; height: 42px; flex: 0 0 42px; object-fit: cover; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(15, 23, 42, .18); }
+        .profile-details { min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+        .profile-details strong { overflow: hidden; color: #0f172a; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+        .profile-details span, .profile-details small { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .language-select { min-width: 82px; padding: 5px 8px; color: #475569; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; outline: none; }
+        .language-select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+        .profile-upload-form { margin-right: auto; }
+        .profile-edit { display: inline-flex; align-items: center; justify-content: center; width: 25px; height: 25px; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 7px; background: #eff6ff; cursor: pointer; }
+        .profile-edit:hover { color: #fff; background: #2563eb; }
         
         /* المحتوى الرئيسي */
         .main { margin-right: 280px; }
@@ -205,34 +216,34 @@
 
 <div class="sidebar">
     <div class="logo">
-        <i class="fas fa-box-open"></i> نظام الجمارك والمخازن
+        <i class="fas fa-box-open"></i> {{ 'Customs & Inventory' if current_language == 'en' else 'نظام الجمارك والمخازن' }}
     </div>
 
     {% if 'admin' in user_permissions or 'department.dashboard.view' in user_permissions %}
-    <a href="/dashboard"><i class="fas fa-chart-line"></i> لوحة التحكم</a>
+    <a href="/dashboard"><i class="fas fa-chart-line"></i> {{ 'Dashboard' if current_language == 'en' else 'لوحة التحكم' }}</a>
     {% endif %}
     {% if 'admin' in user_permissions or 'department.balances.view' in user_permissions %}
-    <a href="/department-balances"><i class="fas fa-balance-scale"></i> أرصدة الإدارات</a>
+    <a href="/department-balances"><i class="fas fa-balance-scale"></i> {{ 'Department Balances' if current_language == 'en' else 'أرصدة الإدارات' }}</a>
     {% endif %}
 
     {% if 'admin' in user_permissions or 'department.local.view' in user_permissions %}
     <div class="customs-accordion">
         <button class="customs-toggle {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#localPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}true{% else %}false{% endif %}" onclick="if (window.location.pathname !== '/local-purchases') window.location.href='/local-purchases';">
-            <span><i class="fas fa-cart-arrow-down"></i> إدارة المشتريات المحلية</span>
+            <span><i class="fas fa-cart-arrow-down"></i> {{ 'Local Purchases' if current_language == 'en' else 'إدارة المشتريات المحلية' }}</span>
             <i class="fas fa-plus customs-plus"></i>
         </button>
 
         <div id="localPurchasesSubmenu" class="collapse {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}show{% endif %}">
-            <a href="/items?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/items' %}active{% endif %}">الأصناف</a>
-            <a href="/categories?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/categories' %}active{% endif %}">الفئات</a>
-            <a href="/items/add/local_purchases" class="sub-link {% if request.path == '/items/add/local_purchases' %}active{% endif %}">إضافة صنف</a>
-            <a href="/stores?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/stores' %}active{% endif %}">المخازن</a>
-            <a href="/suppliers?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/suppliers' %}active{% endif %}">الموردون</a>
-            <a href="{{ url_for('add_requisition') }}?department=local_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'local_purchases' %}active{% endif %}">تقديم طلب شراء</a>
-            <a href="/requisitions?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/requisitions' %}active{% endif %}">طلبات الشراء</a>
-            <a href="/purchase-orders?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">أوامر الشراء</a>
-            <a href="/local-purchases/issue-vouchers" class="sub-link {% if request.path.startswith('/local-purchases/issue-vouchers') %}active{% endif %}">أذونات الصرف المحلية</a>
-            <a href="/local-purchases/issue/add" class="sub-link {% if request.path.startswith('/local-purchases/issue/add') %}active{% endif %}">إنشاء إذن صرف محلي</a>
+            <a href="/items?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/items' %}active{% endif %}">{{ 'Items' if current_language == 'en' else 'الأصناف' }}</a>
+            <a href="/categories?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/categories' %}active{% endif %}">{{ 'Categories' if current_language == 'en' else 'الفئات' }}</a>
+            <a href="/items/add/local_purchases" class="sub-link {% if request.path == '/items/add/local_purchases' %}active{% endif %}">{{ 'Add item' if current_language == 'en' else 'إضافة صنف' }}</a>
+            <a href="/stores?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/stores' %}active{% endif %}">{{ 'Warehouses' if current_language == 'en' else 'المخازن' }}</a>
+            <a href="/suppliers?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/suppliers' %}active{% endif %}">{{ 'Suppliers' if current_language == 'en' else 'الموردون' }}</a>
+            <a href="{{ url_for('add_requisition') }}?department=local_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'local_purchases' %}active{% endif %}">{{ 'Submit purchase request' if current_language == 'en' else 'تقديم طلب شراء' }}</a>
+            <a href="/requisitions?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/requisitions' %}active{% endif %}">{{ 'Purchase Requests' if current_language == 'en' else 'طلبات الشراء' }}</a>
+            <a href="/purchase-orders?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">{{ 'Purchase Orders' if current_language == 'en' else 'أوامر الشراء' }}</a>
+            <a href="/local-purchases/issue-vouchers" class="sub-link {% if request.path.startswith('/local-purchases/issue-vouchers') %}active{% endif %}">{{ 'Local issue vouchers' if current_language == 'en' else 'أذونات الصرف المحلية' }}</a>
+            <a href="/local-purchases/issue/add" class="sub-link {% if request.path.startswith('/local-purchases/issue/add') %}active{% endif %}">{{ 'Create local issue voucher' if current_language == 'en' else 'إنشاء إذن صرف محلي' }}</a>
         </div>
     </div>
     {% endif %}
@@ -240,7 +251,7 @@
     {% if 'admin' in user_permissions or 'department.external.view' in user_permissions or 'department.customs.view' in user_permissions %}
     <div class="customs-accordion">
         <button class="customs-toggle {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#customsSubmenu" aria-expanded="{% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="if (!window.location.pathname.startsWith('/customs-management') && window.location.pathname !== '/external-purchases' && !(window.location.pathname === '/items' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/categories' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/stores' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/suppliers' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/requisitions' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname.startsWith('/purchase-orders') && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/requisition/add' && new URLSearchParams(window.location.search).get('department') === 'external_purchases')) window.location.href='/external-purchases';">
-            <span><i class="fas fa-shipping-fast"></i> إدارة الجمارك</span>
+            <span><i class="fas fa-shipping-fast"></i> {{ 'Customs Management' if current_language == 'en' else 'إدارة الجمارك' }}</span>
             <i class="fas fa-plus customs-plus"></i>
         </button>
 
@@ -274,28 +285,28 @@
     {% endif %}
 
     {% if user and ('admin' in user_permissions or 'department.users.view' in user_permissions) %}
-    <a href="/roles"><i class="fas fa-user-shield"></i> إدارة المستخدمين</a>
+    <a href="/roles"><i class="fas fa-user-shield"></i> {{ 'User Management' if current_language == 'en' else 'إدارة المستخدمين' }}</a>
     {% endif %}
     {% if user and ('admin' in user_permissions or 'department.hr.view' in user_permissions) %}
-    <a href="/hr/employees"><i class="fas fa-users"></i> شئون العاملين</a>
+    <a href="/hr/employees"><i class="fas fa-users"></i> {{ 'HR' if current_language == 'en' else 'شئون العاملين' }}</a>
     {% endif %}
     {% if user and ('admin' in user_permissions or 'department.payroll.view' in user_permissions) %}
-    <a href="/hr/settings"><i class="fas fa-cog"></i> إعدادات الرواتب</a>
+    <a href="/hr/settings"><i class="fas fa-cog"></i> {{ 'Payroll Settings' if current_language == 'en' else 'إعدادات الرواتب' }}</a>
     {% endif %}
     {% if 'admin' in user_permissions or 'department.exchange.view' in user_permissions %}
-    <a href="/exchange-rates"><i class="fas fa-money-bill-wave"></i> أسعار العملات</a>
+    <a href="/exchange-rates"><i class="fas fa-money-bill-wave"></i> {{ 'Exchange Rates' if current_language == 'en' else 'أسعار العملات' }}</a>
     {% endif %}
     {% if 'admin' in user_permissions or 'department.companies.view' in user_permissions %}
-    <a href="/companies"><i class="fas fa-building"></i> إدارة دليل الشركات</a>
+    <a href="/companies"><i class="fas fa-building"></i> {{ 'Company Directory' if current_language == 'en' else 'إدارة دليل الشركات' }}</a>
     {% endif %}
     
     <hr style="border-color: rgba(255,255,255,.1);">
     {% if 'admin' in user_permissions or 'department.reports.view' in user_permissions %}
-    <a href="/reports"><i class="fas fa-print"></i> التقارير</a>
+    <a href="/reports"><i class="fas fa-print"></i> {{ 'Reports' if current_language == 'en' else 'التقارير' }}</a>
     {% endif %}
     
     <hr style="border-color: rgba(255,255,255,.1);">
-    <a href="/logout" class="text-danger"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
+    <a href="/logout" class="text-danger"><i class="fas fa-sign-out-alt"></i> {{ 'Sign out' if current_language == 'en' else 'تسجيل الخروج' }}</a>
 </div>
 
 <div class="main">
@@ -319,6 +330,13 @@
         </div>
 
         <div class="d-flex align-items-center gap-2">
+            <form method="post" action="{{ url_for('set_language') }}" class="m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select class="language-select" name="language" aria-label="اختيار اللغة" onchange="this.form.submit()">
+                    <option value="ar" {% if current_language != 'en' %}selected{% endif %}>العربية</option>
+                    <option value="en" {% if current_language == 'en' %}selected{% endif %}>English</option>
+                </select>
+            </form>
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#globalSearchModal" title="بحث عام">
                 <i class="fas fa-search"></i>
             </button>
@@ -352,7 +370,30 @@
                 </ul>
             </div>
 
-            <h4 class="mb-0">مرحباً {{ user }}</h4>
+            <div class="profile-card" title="بيانات المستخدم">
+                <img
+                    class="profile-avatar"
+                    src="{{ url_for('static', filename=profile_image_filename) if profile_image_filename else 'https://ui-avatars.com/api/?name=' ~ (user|urlencode) ~ '&background=0f172a&color=ffffff&size=80' }}"
+                    onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name={{ user|urlencode }}&background=0f172a&color=ffffff&size=80';"
+                    alt="صورة {{ user }}"
+                    loading="lazy"
+                >
+                <div class="profile-details">
+                    <strong>{{ user_profile.full_name or user }}</strong>
+                    <span>@{{ user_profile.username or user }} · {{ user_profile.role_name }}</span>
+                    <small>{{ user_profile.email or 'لا يوجد بريد إلكتروني' }}</small>
+                    <small>آخر دخول: {{ user_profile.last_login_at or 'غير متوفر' }}</small>
+                </div>
+                {% if user %}
+                <form class="profile-upload-form" method="post" action="{{ url_for('upload_profile_avatar') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input id="profileAvatar" type="file" name="avatar" accept=".jpg,.jpeg,.png,.webp,.gif" hidden onchange="this.form.submit()">
+                    <label class="profile-edit" for="profileAvatar" title="اختيار صورة من الكمبيوتر" aria-label="اختيار صورة من الكمبيوتر">
+                    <i class="fas fa-pen"></i>
+                    </label>
+                </form>
+                {% endif %}
+            </div>
         </div>
     </div>
 
