@@ -101,6 +101,18 @@
         .sidebar .sub-link:hover, .sidebar .sub-link.active {
             background: rgba(37, 99, 235, 0.12); color: #fff; transform: translateX(-2px);
         }
+        /* حركة خفيفة تجعل روابط القائمة أكثر تفاعلاً عند المرور والتحديد */
+        .sidebar a {
+            position: relative;
+            overflow: hidden;
+            transition: all .3s cubic-bezier(.4, 0, .2, 1);
+            border-radius: 8px;
+            margin: 4px 8px;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            transform: translateX(-4px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .25);
+        }
         .sub-submenu {
             margin-bottom: 8px;
         }
