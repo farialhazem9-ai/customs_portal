@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container-fluid mt-4">
+
+    <!-- بيانات الصنف -->
+
+    <div class="card shadow border-0 mb-3">
+
+        <div class="card-header bg-primary text-white">
+
+            <h3 class="mb-0">
+                📑 كرت الصنف
+            </h3>
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="row">
+
+                <div class="col-md-3">
+                    <strong>الكود:</strong>
+                    {{ item.item_code }}
+                </div>
+
+                <div class="col-md-5">
+                    <strong>الصنف:</strong>
+                    {{ item.item_name_ar }}
+                </div>
+
+                <div class="col-md-2">
+                    <strong>الوحدة:</strong>
+                    {{ item.unit_name }}
+                </div>
+
+                <div class="col-md-2">
+                    <strong>الرصيد:</strong>
+
+                    <span class="badge bg-success fs-6">
+                        {{ current_balance }}
+                    </span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- الملخص -->
+
+    <div class="row mb-3">
+
+        <div class="col-md-3">
+
+            <div class="card bg-success text-white">
+
+                <div class="card-body text-center">
+
+                    <h5>إجمالي الوارد</h5>
+
+                    <h3>
+                        {{ total_in }}
+                    </h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card bg-danger text-white">
+
+                <div class="card-body text-center">
+
+                    <h5>إجمالي الصادر</h5>
+
+                    <h3>
+                        {{ total_out }}
+                    </h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card bg-primary text-white">
+
+                <div class="card-body text-center">
+
+                    <h5>الرصيد الحالي</h5>
+
+                    <h3>
+                        {{ current_balance }}
+                    </h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <button
+                onclick="window.print()"
+                class="btn btn-dark w-100 h-100">
+
+                🖨 طباعة الكرت
+
+            </button>
+
+        </div>
+
+    </div>
+
+    <!-- الحركات -->
+
+    <div class="card shadow border-0">
+
+        <div class="card-header">
+
+            <h5 class="mb-0">
+                حركة الصنف
+            </h5>
+
+        </div>
+
+        <div class="card-body">
+
+            <table class="table table-bordered table-hover">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th>#</th>
+                        <th>التاريخ</th>
+                        <th>المخزن</th>
+                        <th>نوع الحركة</th>
+                        <th>رقم المرجع</th>
+                        <th>وارد</th>
+                        <th>صادر</th>
+                        <th>الرصيد</th>
+                        <th>ملاحظات</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for row in transactions %}
+
+                    <tr>
+
+                        <td>{{ row.id }}</td>
+
+                        <td>{{ row.created_at }}</td>
+
+                        <td>{{ row.warehouse_name }}</td>
+
+                        <td>
+
+                            {% if row.transaction_type == 'IN' %}
+                                <span class="badge bg-success">
+                                    وارد
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger">
+                                    صادر
+                                </span>
+                            {% endif %}
+
+                        </td>
+
+                        <td>{{ row.reference_no }}</td>
+
+                        <td>{{ row.qty_in }}</td>
+
+                        <td>{{ row.qty_out }}</td>
+
+                        <td>
+                            <strong>
+                                {{ row.balance }}
+                            </strong>
+                        </td>
+
+                        <td>{{ row.notes }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

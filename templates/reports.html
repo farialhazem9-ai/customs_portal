@@ -1,0 +1,17 @@
+<table class="table table-bordered">
+
+    <tr>
+        <th>الصنف</th>
+        <th>المخزن</th>
+        <th>الكمية</th>
+    </tr>
+
+    {% for row in stock %}
+    <tr>
+        <td>{{ row.item_name_ar }}</td>
+        <td>{{ row.store_name }}</td>
+        <td>{{ row.quantity }}</td>
+    </tr>
+    {% endfor %}
+
+</table>

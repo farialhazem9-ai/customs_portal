@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}نتائج البحث{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-1">نتائج البحث</h3>
+                <p class="mb-0 text-white-50">"{{ query }}" في {% if section == 'all' %}جميع الأقسام{% elif section == 'items' %}الأصناف{% elif section == 'stores' %}المخازن{% elif section == 'suppliers' %}الموردون{% elif section == 'categories' %}الفئات{% elif section == 'requisitions' %}طلبات الشراء{% elif section == 'purchase_orders' %}أوامر الشراء{% else %}النظام{% endif %}</p>
+            </div>
+            <a href="/dashboard" class="btn btn-light">العودة للرئيسية</a>
+        </div>
+        <div class="card-body">
+            {% if not query %}
+                <div class="alert alert-info">يرجى إدخال كلمة بحث في حقل البحث العام.</div>
+            {% elif not has_results %}
+                <div class="alert alert-warning">لا توجد نتائج مطابقة لكلمة البحث.</div>
+            {% else %}
+                {% if results['items'] %}
+                <div class="mb-4">
+                    <h5>الأصناف</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>الرقم</th>
+                                    <th>الكود</th>
+                                    <th>اسم الصنف</th>
+                                    <th>الاسم الإنجليزي</th>
+                                    <th>الرصيد</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in results['items'] %}
+                                <tr>
+                                    <td>{{ item.id }}</td>
+                                    <td>{{ item.item_code }}</td>
+                                    <td>{{ item.item_name_ar }}</td>
+                                    <td>{{ item.item_name_en }}</td>
+                                    <td>{{ item.current_stock }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if results['categories'] %}
+                <div class="mb-4">
+                    <h5>الفئات</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>الرقم</th>
+                                    <th>اسم الفئة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cat in results['categories'] %}
+                                <tr>
+                                    <td>{{ cat.id }}</td>
+                                    <td>{{ cat.category_name_ar }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if results['stores'] %}
+                <div class="mb-4">
+                    <h5>المخازن</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>كود المخزن</th>
+                                    <th>اسم المخزن</th>
+                                    <th>الموقع</th>
+                                    <th>المسؤول</th>
+                                    <th>الهاتف</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for store in results['stores'] %}
+                                <tr>
+                                    <td>{{ store.id }}</td>
+                                    <td>{{ store.store_code }}</td>
+                                    <td>{{ store.store_name }}</td>
+                                    <td>{{ store.location or '-' }}</td>
+                                    <td>{{ store.manager or '-' }}</td>
+                                    <td>{{ store.phone or '-' }}</td>
+                                    <td>{{ store.status }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if results['suppliers'] %}
+                <div class="mb-4">
+                    <h5>الموردون</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>كود المورد</th>
+                                    <th>اسم المورد</th>
+                                    <th>الهاتف</th>
+                                    <th>البريد الإلكتروني</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sup in results['suppliers'] %}
+                                <tr>
+                                    <td>{{ sup.id }}</td>
+                                    <td>{{ sup.supplier_code }}</td>
+                                    <td>{{ sup.supplier_name }}</td>
+                                    <td>{{ sup.phone }}</td>
+                                    <td>{{ sup.email }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if results['requisitions'] %}
+                <div class="mb-4">
+                    <h5>طلبات الشراء</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>الصنف</th>
+                                    <th>المخزن</th>
+                                    <th>الكمية</th>
+                                    <th>المستخدم</th>
+                                    <th>السبب</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in results['requisitions'] %}
+                                <tr>
+                                    <td>{{ req.id }}</td>
+                                    <td>{{ req.item_name_ar }}</td>
+                                    <td>{{ req.store_name }}</td>
+                                    <td>{{ req.quantity }}</td>
+                                    <td>{{ req.user }}</td>
+                                    <td>{{ req.reason }}</td>
+                                    <td>{{ req.status }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if results['purchase_orders'] %}
+                <div class="mb-4">
+                    <h5>أوامر الشراء</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover text-center align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>رقم أمر الشراء</th>
+                                    <th>المورد</th>
+                                    <th>إجمالي الكمية</th>
+                                    <th>المجموع</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for po in results['purchase_orders'] %}
+                                <tr>
+                                    <td>{{ po.id }}</td>
+                                    <td>{{ po.po_number }}</td>
+                                    <td>{{ po.supplier_name }}</td>
+                                    <td>{{ po.total_quantity }}</td>
+                                    <td>{{ po.subtotal }}</td>
+                                    <td>{{ po.status }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'تعديل شركة' if is_edit else 'إضافة شركة' }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card shadow border-0">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0"><i class="fas fa-building"></i> {{ 'تعديل بيانات الشركة' if is_edit else 'إضافة شركة جديدة' }}</h4>
+        </div>
+        <div class="card-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">اسم الشركة *</label><input name="company_name" class="form-control" required value="{{ company.company_name if company else '' }}"></div>
+                    <div class="col-md-3"><label class="form-label">كود الشركة *</label><input name="company_code" class="form-control" required value="{{ company.company_code if company else '' }}"></div>
+                    <div class="col-md-3"><label class="form-label">الحالة</label><select name="status" class="form-select"><option value="active" {% if not company or company.status == 'active' %}selected{% endif %}>نشطة</option><option value="inactive" {% if company and company.status == 'inactive' %}selected{% endif %}>غير نشطة</option></select></div>
+                    <div class="col-md-6"><label class="form-label">اسم الشخص المسؤول</label><input name="contact_person" class="form-control" value="{{ company.contact_person if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">الوظيفة</label><input name="contact_title" class="form-control" value="{{ company.contact_title if company else '' }}"></div>
+                    <div class="col-md-4"><label class="form-label">الهاتف الأساسي</label><input name="phone" class="form-control" value="{{ company.phone if company else '' }}"></div>
+                    <div class="col-md-4"><label class="form-label">هاتف بديل</label><input name="alternate_phone" class="form-control" value="{{ company.alternate_phone if company else '' }}"></div>
+                    <div class="col-md-4"><label class="form-label">واتساب</label><input name="whatsapp" class="form-control" value="{{ company.whatsapp if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">البريد الإلكتروني</label><input type="email" name="email" class="form-control" value="{{ company.email if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">البريد الإلكتروني الثاني</label><input type="email" name="alternate_email" class="form-control" value="{{ company.alternate_email if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">الموقع الإلكتروني</label><input type="url" name="website" class="form-control" value="{{ company.website if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">العنوان</label><input name="address" class="form-control" value="{{ company.address if company else '' }}"></div>
+                    <div class="col-md-3"><label class="form-label">المدينة</label><input name="city" class="form-control" value="{{ company.city if company else '' }}"></div>
+                    <div class="col-md-3"><label class="form-label">الدولة</label><input name="country" class="form-control" value="{{ company.country if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">الرقم الضريبي</label><input name="tax_number" class="form-control" value="{{ company.tax_number if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">السجل التجاري</label><input name="commercial_register" class="form-control" value="{{ company.commercial_register if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">نوع النشاط</label><input name="activity" class="form-control" value="{{ company.activity if company else '' }}"></div>
+                    <div class="col-md-6"><label class="form-label">التخصص</label><input name="specialization" class="form-control" value="{{ company.specialization if company else '' }}"></div>
+                    <div class="col-md-12"><label class="form-label">ملاحظات</label><textarea name="notes" class="form-control" rows="4">{{ company.notes if company else '' }}</textarea></div>
+                </div>
+                <div class="mt-4"><button class="btn btn-primary"><i class="fas fa-save"></i> حفظ</button><a href="/companies" class="btn btn-secondary">إلغاء</a></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

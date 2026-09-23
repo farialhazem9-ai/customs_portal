@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <title>طباعة الوارد - {{ customs_item.declaration_no or ('DECL-' ~ customs_item.id) }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 10mm 12mm; }
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #111; background: #fff; }
+        .page { width: 210mm; max-width: 210mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
+        header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+        .company { text-align:left; font-size:13px; }
+        .company h1 { margin:0; font-size:16px; }
+        .meta { text-align:right; font-size:13px; }
+        .meta strong { display:block; font-size:14px; }
+        .box { border:1px solid #222; padding:10px; background:#fff; }
+        table { width:100%; border-collapse:collapse; margin-bottom:8px; table-layout:fixed; }
+        table thead th { background:#f3f4f6; border:1px solid #bbb; padding:8px; font-weight:700; font-size:12px; }
+        table tbody td { border:1px solid #bbb; padding:8px; vertical-align:top; font-size:12px; }
+        .right { text-align:right; }
+        .center { text-align:center; }
+        .small { font-size:11px; color:#555; }
+        .totals { display:flex; justify-content:flex-end; margin-top:6px; }
+        .totals .total-box { width:260px; border:1px solid #222; padding:10px; background:#fafafa; font-size:13px; }
+        .signatures { display:flex; justify-content:space-between; margin-top:20px; }
+        .sig { width:30%; text-align:center; }
+        .stamp { width:100px; height:100px; border:1px dashed #888; display:inline-block; vertical-align:middle; }
+        @media print { body { margin:0 } .page { box-shadow:none; margin:0; width:100%; padding:8mm; } }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="company">
+                <h1>بيان وارد جمركي</h1>
+                <div class="small">نظام الجمارك والمخازن</div>
+            </div>
+            <div class="meta">
+                <div><strong>رقم الوارد: {{ customs_item.declaration_no or ('DECL-' ~ customs_item.id) }}</strong></div>
+                <div>ACID: <strong>{{ customs_item.acid or '-' }}</strong></div>
+                <div>التاريخ: <strong>{{ customs_item.declaration_date or customs_item.created_at }}</strong></div>
+            </div>
+        </header>
+
+        <div class="box" style="margin-bottom:8px;">
+            <div style="display:flex; gap:12px;">
+                <div style="flex:1">
+                    <strong>المستورد:</strong>
+                    <div>{{ customs_item.importer_name or '-' }}</div>
+                </div>
+                <div style="flex:1">
+                    <strong>المصدر:</strong>
+                    <div>{{ customs_item.exporter_name or '-' }}</div>
+                </div>
+                <div style="flex:1">
+                    <strong>نوع الوارد:</strong>
+                    <div>{% if customs_item.inbound_type=='external' %}وارد خارجي{% elif customs_item.inbound_type=='local_market' %}وارد سوق محلي{% elif customs_item.inbound_type=='stopped_entry' %}وارد دخول موقوفات{% elif customs_item.inbound_type=='within_zone' %}وارد داخل المنطقة{% elif customs_item.inbound_type=='between_regions' %}وارد بين المناطق{% else %}-{% endif %}</div>
+                </div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:6%">#</th>
+                    <th>البند / الوصف</th>
+                    <th style="width:12%">الكمية</th>
+                    <th style="width:12%">الوحدة</th>
+                    <th style="width:12%">سعر الوحدة</th>
+                    <th style="width:12%">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in items %}
+                <tr>
+                    <td class="center">{{ loop.index }}</td>
+                    <td>{{ it.item_name_ar or it.description or '-' }}</td>
+                    <td class="center">{{ it.quantity or 0 }}</td>
+                    <td class="center">{{ it.unit_name or '-' }}</td>
+                    <td class="right">{{ '%.2f' % (it.unit_price or 0) }}</td>
+                    <td class="right">{{ '%.2f' % ((it.quantity or 0) * (it.unit_price or 0)) }}</td>
+                </tr>
+                {% endfor %}
+                {% for i in range( (10 - (items|length if items else 0)) if (items|length if items else 0) < 10 else 0 ) %}
+                <tr><td class="center">&nbsp;</td><td>&nbsp;</td><td class="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <div class="total-box">
+                <div class="small">المبلغ الإجمالي:</div>
+                <div style="font-size:16px; font-weight:700; text-align:right">{{ '%.2f' % (customs_item.total_value or 0) }}</div>
+                <div class="small">رسوم الجمارك: {{ '%.2f' % (customs_item.customs_fee or 0) }}</div>
+            </div>
+        </div>
+
+        <div class="signatures">
+            <div class="sig"><div class="stamp"></div><div>توقيع المستلم</div></div>
+            <div class="sig"><div class="stamp"></div><div>توقيع الجمارك</div></div>
+            <div class="sig"><div class="stamp"></div><div>ختم</div></div>
+        </div>
+
+        <div style="margin-top:12px; font-size:11px; color:#555">ملاحظات: {{ customs_item.notes or '-' }}</div>
+    </div>
+</body>
+</html>

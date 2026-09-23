@@ -1,0 +1,21 @@
+    cur = conn.cursor()
+
+    cur.execute("""
+        DELETE FROM issue_voucher_items
+        WHERE voucher_id=%s
+    """, (voucher_id,))
+
+    cur.execute("""
+        DELETE FROM issue_vouchers
+        WHERE id=%s
+    """, (voucher_id,))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    flash(
+        "تم حذف الإذن",
+        "success"
+    )

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow border-0">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h3>📂 قائمة فئات البنود</h3>
+                <p class="mb-0 text-white-50">ابحث في الفئات أو استخدم البحث العام.</p>
+            </div>
+            <a href="/categories/add" class="btn btn-light">➕ إضافة فئة جديدة</a>
+        </div>
+        
+        <div class="card-body">
+            <div class="mb-3">
+                <input type="search" id="categorySearch" class="form-control" placeholder="بحث في الفئات...">
+            </div>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <table class="table table-bordered table-hover text-center" id="categoriesTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>الرقم التعريفي (ID)</th>
+                        <th>اسم الفئة بالعربية</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cat in categories %}
+                    <tr>
+                        <td>{{ cat.id }}</td>
+                        <td>{{ cat.category_name_ar }}</td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="/categories/edit/{{ cat.id }}" class="btn btn-warning btn-sm">✏️ تعديل</a>
+                                
+                                <form action="/categories/delete/{{ cat.id }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('هل أنت متأكد من حذف هذه الفئة؟')">
+                                        🗑 حذف
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-muted">لا توجد فئات مسجلة حالياً.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('categorySearch');
+        const table = document.getElementById('categoriesTable');
+        if (!searchInput || !table) return;
+
+        searchInput.addEventListener('keyup', function () {
+            const value = this.value.trim().toLowerCase();
+            table.querySelectorAll('tbody tr').forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(value) ? '' : 'none';
+            });
+        });
+    });
+</script>

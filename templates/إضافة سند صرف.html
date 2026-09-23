@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow">
+
+    <div class="card-header bg-primary text-white">
+        <h3>سند صرف جديد</h3>
+    </div>
+
+    <div class="card-body">
+
+        <form method="POST">
+
+            <div class="row">
+
+                <div class="col-md-4">
+                    <label>رقم السند</label>
+                    <input type="text"
+                           name="voucher_no"
+                           class="form-control"
+                           required>
+                </div>
+
+                <div class="col-md-4">
+                    <label>التاريخ</label>
+                    <input type="date"
+                           name="issue_date"
+                           class="form-control"
+                           required>
+                </div>
+
+                <div class="col-md-4">
+                    <label>الجهة</label>
+                    <input type="text"
+                           name="department"
+                           class="form-control">
+                </div>
+
+                <div class="col-md-6">
+                    <label>اسم المستلم</label>
+                    <input type="text"
+                           name="receiver_name"
+                           class="form-control">
+                </div>
+
+                <div class="col-md-12 mt-3">
+                    <label>ملاحظات</label>
+                    <textarea name="notes"
+                              class="form-control"></textarea>
+                </div>
+
+            </div>
+
+            <button class="btn btn-success mt-3">
+                حفظ
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endblock %}

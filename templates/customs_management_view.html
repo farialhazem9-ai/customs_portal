@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}عرض العملية الجمركية{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-eye text-primary"></i> عرض العملية الجمركية</h3>
+            <small>تفاصيل السجل الجمركي مع حالة التخليص والمخزن المرتبط.</small>
+        </div>
+        <a href="/customs-management" class="btn btn-outline-secondary btn-sm">عودة إلى القائمة</a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">رقم الوارد</label>
+                    <input type="text" class="form-control" value="{{ customs_item.declaration_no }}" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">تاريخ البيان</label>
+                    <input type="text" class="form-control" value="{{ customs_item.declaration_date }}" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">المستورد</label>
+                    <input type="text" class="form-control" value="{{ customs_item.importer_name or '-' }}" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">المصدر</label>
+                    <input type="text" class="form-control" value="{{ customs_item.exporter_name or '-' }}" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">نوع الوارد</label>
+                    <input type="text" class="form-control" value="{% if customs_item.inbound_type=='external' %}وارد خارجي{% elif customs_item.inbound_type=='local_market' %}وارد سوق محلي{% elif customs_item.inbound_type=='stopped_entry' %}وارد دخول موقوفات{% elif customs_item.inbound_type=='within_zone' %}وارد داخل المنطقة{% elif customs_item.inbound_type=='between_regions' %}وارد بين المناطق{% else %}-{% endif %}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">البلد المصدر</label>
+                    <input type="text" class="form-control" value="{{ customs_item.origin_country or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">بلد الوجهة</label>
+                    <input type="text" class="form-control" value="{{ customs_item.destination_country or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">نظام الخضوع</label>
+                    <input type="text" class="form-control" value="{% if customs_item.regime_type == 'import' %}استيراد{% elif customs_item.regime_type == 'export' %}تصدير{% elif customs_item.regime_type == 'transit' %}ترانزيت{% elif customs_item.regime_type == 're-export' %}إعادة تصدير{% elif customs_item.regime_type == 're-import' %}إعادة استيراد{% elif customs_item.regime_type == 'exemption' %}إعفاء{% elif customs_item.regime_type %}{{ customs_item.regime_type }}{% else %}-{% endif %}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">تفاصيل نظام الخضوع</label>
+                    <input type="text" class="form-control" value="{{ customs_item.regime_details or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">ميناء الشحن</label>
+                    <input type="text" class="form-control" value="{{ customs_item.port_of_loading or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">ميناء الوصول</label>
+                    <input type="text" class="form-control" value="{{ customs_item.port_of_destination or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">ميناء التفريغ</label>
+                    <input type="text" class="form-control" value="{{ customs_item.port_of_discharge or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">رقم البطاقة الضريبية</label>
+                    <input type="text" class="form-control" value="{{ customs_item.tax_card_number or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">رقم السجل التجاري</label>
+                    <input type="text" class="form-control" value="{{ customs_item.commercial_register_number or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">الوزن الإجمالي</label>
+                    <input type="text" class="form-control" value="{{ customs_item.total_weight or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">عدد الطرود</label>
+                    <input type="text" class="form-control" value="{{ customs_item.package_count or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">العملة</label>
+                    <input type="text" class="form-control" value="{{ customs_item.currency or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">القيمة الاجمالية</label>
+                    <input type="text" class="form-control" value="{{ customs_item.total_value or '-' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">رسوم الجمارك</label>
+                    <input type="text" class="form-control" value="{{ customs_item.customs_fee or '-' }}" readonly>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">الحالة</label>
+                    <input type="text" class="form-control" value="{{ customs_item.status or '-' }}" readonly>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">ملاحظات</label>
+                    <textarea class="form-control" rows="3" readonly>{{ customs_item.notes or '-' }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if items %}
+    <div class="card mb-4">
+        <div class="card-header bg-light">الأصناف المرتبطة</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover text-center align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>الصنف</th>
+                            <th>الكمية</th>
+                            <th>الوحدة</th>
+                            <th>ملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.item_name or item.item_code }}</td>
+                            <td>{{ item.qty }}</td>
+                            <td>{{ item.unit or '-' }}</td>
+                            <td>{{ item.notes or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        <a href="/customs-management" class="btn btn-secondary">عودة</a>
+        <a href="/customs-management/edit/{{ customs_item.id }}" class="btn btn-primary">تعديل السجل</a>
+        <a href="/customs-management/view/{{ customs_item.id }}/print" target="_blank" class="btn btn-outline-secondary">طباعة</a>
+    </div>
+</div>
+{% endblock %}

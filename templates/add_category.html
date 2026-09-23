@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5" style="max-width: 600px;">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-success text-white text-center">
+            <h4 class="mb-0">📦 إضافة فئة جديدة للنظام</h4>
+        </div>
+        <div class="card-body p-4">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary">اسم الفئة الجديدة:</label>
+                    <input type="text" class="form-control form-control-lg" name="category_name_ar" required placeholder="مثال: قطع غيار، أثاث مخزني، أدوات مكتبية...">
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg fw-bold">💾 حفظ الفئة الجديدة</button>
+                    <a href="/categories" class="btn btn-light border">عرض كل الفئات</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

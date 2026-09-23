@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اعتماد إذن صرف</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f5f7fa;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            border-radius: 12px 12px 0 0 !important;
+        }
+
+        .info-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .section-title {
+            color: #0d6efd;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .table th {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .table td {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .status-box {
+            padding-top: 8px;
+        }
+
+        .footer-box {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container py-4">
+
+    <div class="card shadow">
+
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">
+                اعتماد إذن صرف
+            </h4>
+        </div>
+
+        <div class="card-body">
+
+            <!-- رسائل النظام -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- بيانات الإذن -->
+            <h5 class="section-title">
+                بيانات إذن الصرف
+            </h5>
+
+            <div class="row g-3">
+
+                <div class="col-md-3">
+                    <label class="info-label">رقم الإذن</label>
+                    <input type="text"
+                           class="form-control"
+                           value="{{ voucher.voucher_no }}"
+                           readonly>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="info-label">التاريخ</label>
+                    <input type="text"
+                           class="form-control"
+                           value="{{ voucher.issue_date }}"
+                           readonly>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="info-label">الجهة</label>
+                    <input type="text"
+                           class="form-control"
+                           value="{{ voucher.department }}"
+                           readonly>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="info-label">المستلم</label>
+                    <input type="text"
+                           class="form-control"
+                           value="{{ voucher.receiver_name }}"
+                           readonly>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="info-label">حالة الإذن</label>
+
+                    <div class="status-box">
+
+                        {% if voucher.status == 'approved' %}
+                            <span class="badge bg-success fs-6">
+                                معتمد
+                            </span>
+
+                        {% elif voucher.status == 'cancelled' %}
+                            <span class="badge bg-danger fs-6">
+                                ملغي
+                            </span>
+
+                        {% else %}
+                            <span class="badge bg-warning text-dark fs-6">
+                                مسودة
+                            </span>
+
+                        {% endif %}
+
+                    </div>
+                </div>
+
+            </div>
+
+            <hr>
+
+            <!-- الأصناف -->
+            <h5 class="section-title">
+                الأصناف المصروفة
+            </h5>
+
+            <div class="table-responsive">
+
+                <table class="table table-bordered table-hover">
+
+                    <thead class="table-light">
+
+                    <tr>
+                        <th>#</th>
+                        <th>الصنف</th>
+                        <th>الكمية</th>
+                        <th>سعر الوحدة</th>
+                        <th>الإجمالي</th>
+                    </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                    {% for item in items %}
+
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.item_name }}</td>
+                            <td>{{ item.qty }}</td>
+                            <td>{{ item.unit_price }}</td>
+                            <td>{{ item.total }}</td>
+                        </tr>
+
+                    {% endfor %}
+
+                    {% if not items %}
+                        <tr>
+                            <td colspan="5">
+                                لا توجد أصناف
+                            </td>
+                        </tr>
+                    {% endif %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+            <!-- الملاحظات -->
+            <div class="mt-4">
+
+                <label class="info-label">
+                    الملاحظات
+                </label>
+
+                <textarea class="form-control"
+                          rows="3"
+                          readonly>{{ voucher.notes }}</textarea>
+
+            </div>
+
+            <!-- بيانات الاعتماد -->
+            <div class="footer-box mt-4">
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+                        <label class="info-label">
+                            المعتمد بواسطة
+                        </label>
+
+                        <input type="text"
+                               class="form-control"
+                               value="{{ voucher.approved_by or '' }}"
+                               readonly>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="info-label">
+                            تاريخ الاعتماد
+                        </label>
+
+                        <input type="text"
+                               class="form-control"
+                               value="{{ voucher.approved_at or '' }}"
+                               readonly>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="info-label">
+                            منشئ الإذن
+                        </label>
+
+                        <input type="text"
+                               class="form-control"
+                               value="{{ voucher.created_by or '' }}"
+                               readonly>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <hr>
+
+            <!-- الأزرار -->
+            <div class="d-flex gap-2">
+                <a href="/dashboard" class="btn btn-sm btn-outline-secondary" title="الصفحة الرئيسية"><i class="fas fa-home"></i></a>
+
+                {% if voucher.status == 'draft' %}
+
+                <form method="POST"
+                      action="/issue-vouchers/approve/{{ voucher.id }}">
+
+                    <button type="submit"
+                            class="btn btn-success">
+
+                        اعتماد إذن الصرف
+
+                    </button>
+
+                </form>
+
+                {% endif %}
+
+                <a href="/issue-vouchers"
+                   class="btn btn-secondary">
+
+                    رجوع
+
+                </a>
+
+                <button onclick="window.print()"
+                        class="btn btn-primary">
+
+                    طباعة
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

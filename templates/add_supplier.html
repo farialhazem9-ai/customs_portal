@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow col-md-6 mx-auto">
+        <div class="card-header bg-success text-white">
+            <h5><i class="fas fa-plus"></i> إضافة مورد جديد</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">اسم المورد</label>
+                    <input type="text" name="supplier_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">كود المورد</label>
+                    <input type="text" name="supplier_code" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">رقم الهاتف</label>
+                    <input type="text" name="phone" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">البريد الإلكتروني</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">حفظ المورد</button>
+                <a href="/suppliers" class="btn btn-secondary">إلغاء</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

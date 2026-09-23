@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-shopping-cart"></i> تقديم طلب شراء جديد</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" onsubmit="return validateForm()">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">الصنف المطلوب</label>
+                            <select id="itemSelect" name="item_id" class="form-select" required>
+                                <option value="" disabled {% if not selected_item %}selected{% endif %}>-- اختر صنفاً من القائمة --</option>
+                                {% for item in items %}
+                                <option value="{{ item.id }}"
+                                        data-stock="{{ item.current_stock }}"
+                                        data-store="{{ item.store_name }}"
+                                        {% if selected_item and (selected_item|int) == item.id %}selected{% endif %}>
+                                    {{ item.item_name_ar }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">الرصيد الحالي</label>
+                                <input type="text" id="currentStock" class="form-control" readonly value="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">المخزن الحالي</label>
+                                <input type="text" id="itemStore" class="form-control" readonly value="غير محدد">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">مخزن الطلب</label>
+                                <select name="store_id" class="form-select" required>
+                                    <option value="" disabled selected>-- اختر مخزناً --</option>
+                                    {% for store in stores %}
+                                    <option value="{{ store.id }}">{{ store.store_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">مقدم الطلب</label>
+                                <input type="text" class="form-control" readonly value="{{ requester }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">الكمية</label>
+                            <input type="number" name="quantity" class="form-control" 
+                                   min="1" step="any" placeholder="أدخل الكمية المطلوبة" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">سبب الطلب / ملاحظات</label>
+                            <textarea name="reason" class="form-control" rows="3" 
+                                      placeholder="يرجى توضيح سبب احتياج هذا الصنف..."></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane"></i> إرسال الطلب
+                            </button>
+                            <a href="/dashboard" class="btn btn-outline-secondary">إلغاء</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateItemInfo() {
+        const select = document.getElementById('itemSelect');
+        const currentStock = document.getElementById('currentStock');
+        const itemStore = document.getElementById('itemStore');
+        const selected = select.options[select.selectedIndex];
+        if (selected && selected.dataset.stock !== undefined) {
+            currentStock.value = selected.dataset.stock || '0';
+            itemStore.value = selected.dataset.store || 'غير محدد';
+        } else {
+            currentStock.value = '0';
+            itemStore.value = 'غير محدد';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const select = document.getElementById('itemSelect');
+        select.addEventListener('change', updateItemInfo);
+        updateItemInfo();
+    });
+
+    function validateForm() {
+        const qty = document.querySelector('input[name="quantity"]').value;
+        if (qty <= 0) {
+            alert("يرجى إدخال كمية صحيحة أكبر من صفر");
+            return false;
+        }
+        return true;
+    }
+</script>
+{% endblock %}

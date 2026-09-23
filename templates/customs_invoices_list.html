@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}قائمة الفواتير | نظام الجمارك والمخازن{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-list text-primary"></i> قائمة الفواتير</h3>
+            <small>قائمة بجميع الفواتير المنشأة ضمن إدارة الجمارك.</small>
+        </div>
+        <a href="/customs-management" class="btn btn-secondary btn-sm">العودة</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-custom table-hover text-center align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الفاتورة</th>
+                            <th>النوع</th>
+                            <th>التاريخ</th>
+                            <th>الطرف</th>
+                            <th>الإجمالي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inv in invoices %}
+                        <tr>
+                            <td>{{ inv.id }}</td>
+                            <td>{{ inv.invoice_no or ('INV-' ~ inv.id) }}</td>
+                            <td>
+                                {% if inv.invoice_type == 'export_invoice' %}فاتورة صادر{% elif inv.invoice_type=='final_sale' %}فاتورة بيع نهائي{% elif inv.invoice_type=='umbrella_transfer' %}تحويل مظلة{% elif inv.invoice_type=='return_export' %}إعادة صادر{% else %}-{% endif %}
+                            </td>
+                            <td>{{ inv.invoice_date or inv.created_at }}</td>
+                            <td>{{ inv.party or '-' }}</td>
+                            <td>{{ '%.2f' % (inv.total_amount or 0) }}</td>
+                            <td>
+                                <a href="/customs-management/invoice/{{ inv.id }}" class="btn btn-sm btn-outline-secondary">عرض</a>
+                                <a href="/customs-management/invoice/{{ inv.id }}/edit" class="btn btn-sm btn-outline-primary">تعديل</a>
+                                <a href="/customs-management/invoice/{{ inv.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة</a>
+                                <form method="post" action="/customs-management/invoice/{{ inv.id }}/delete" style="display:inline-block;" onsubmit="return confirm('هل أنت متأكد من حذف الفاتورة؟');">
+                                    <button class="btn btn-sm btn-outline-danger">حذف</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">لا توجد فواتير بعد.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

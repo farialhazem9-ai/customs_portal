@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}أسعار العملات مقابل الجنيه المصري{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>أسعار العملات مقابل الجنيه المصري</h2>
+        <p class="text-muted mb-0">معدل التحويل من الجنيه المصري إلى العملات الأجنبية.</p>
+    </div>
+    <div class="text-end">
+        {% if updated_at %}
+        <div class="text-muted" style="font-size: 13px;">آخر تحديث من الخادم: {{ updated_at }}</div>
+        {% endif %}
+        <button id="refreshRates" class="btn btn-sm btn-outline-primary mt-2">تحديث الآن</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="exchangeStatus" class="alert alert-info" role="status">
+            جاري تحميل أسعار الصرف...
+        </div>
+        <div class="table-responsive">
+            <table class="table table-custom mb-0">
+                <thead>
+                    <tr>
+                        <th>العملة</th>
+                        <th>رمز العملة</th>
+                        <th>سعر مقابل الجنيه المصري</th>
+                    </tr>
+                </thead>
+                <tbody id="ratesBody">
+                    {% if rates %}
+                        {% for rate in rates %}
+                            <tr>
+                                <td>{{ rate.name }}</td>
+                                <td>{{ rate.code }}</td>
+                                <td>{{ rate.rate }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">لا توجد بيانات حالياً</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const currencyNames = {
+        USD: 'دولار أمريكي',
+        EUR: 'يورو',
+        GBP: 'جنيه إسترليني',
+        AED: 'درهم إماراتي',
+        SAR: 'ريال سعودي',
+        KWD: 'دينار كويتي',
+        JPY: 'ين ياباني',
+        CHF: 'فرنك سويسري',
+        CAD: 'دولار كندي',
+        AUD: 'دولار أسترالي',
+        NZD: 'دولار نيوزيلندي',
+        CNY: 'يوان صيني',
+        TRY: 'ليرة تركية',
+        INR: 'روبية هندية',
+        RUB: 'روبل روسي',
+        MXN: 'بيزو مكسيكي',
+        ZAR: 'راند جنوب أفريقي',
+        SEK: 'كرونا سويدية',
+        NOK: 'كرونا نرويجية',
+        DKK: 'كرونا دانماركية'
+    };
+
+    function setStatus(message, type = 'info') {
+        const status = document.getElementById('exchangeStatus');
+        if (!status) return;
+        status.className = 'alert alert-' + type;
+        status.textContent = message;
+    }
+
+    function renderRates(data) {
+        const tbody = document.getElementById('ratesBody');
+        tbody.innerHTML = '';
+
+        if (!data || !data.rates || Object.keys(data.rates).length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">لا توجد بيانات حالياً</td></tr>';
+            return;
+        }
+
+        const entries = Object.entries(data.rates)
+            .filter(([code]) => code !== 'EGP')
+            .sort((a, b) => a[0].localeCompare(b[0]));
+
+        entries.forEach(([code, rate]) => {
+            const display = rate && rate > 0 ? (1 / rate).toFixed(4) : 'غير متوفر';
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${currencyNames[code] || code}</td>
+                <td>${code}</td>
+                <td>${display}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    async function fetchClientRates() {
+        if (!navigator.onLine) {
+            setStatus('لا يوجد اتصال بالإنترنت حالياً. برجاء إعادة المحاولة عندما يتوفر الإنترنت.', 'warning');
+            return;
+        }
+
+        setStatus('جاري جلب أسعار الصرف من الإنترنت...', 'info');
+        const url = 'https://open.er-api.com/v6/latest/EGP';
+
+        try {
+            const response = await fetch(url, { cache: 'no-cache' });
+            if (!response.ok) {
+                throw new Error('فشل الاتصال بمزود الأسعار');
+            }
+            const data = await response.json();
+            if (data.result !== 'success') {
+                throw new Error('الاستجابة لم تكن ناجحة');
+            }
+            renderRates(data);
+            setStatus('تم جلب الأسعار بنجاح من الإنترنت.', 'success');
+        } catch (error) {
+            setStatus('تعذر جلب الأسعار من الإنترنت حالياً. حاول مرة أخرى.', 'warning');
+            console.error('fetchClientRates error:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('refreshRates').addEventListener('click', fetchClientRates);
+        fetchClientRates();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}قائمة الموظفين{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>الموظفون</h3>
+    <a href="/hr/employees/add" class="btn btn-sm btn-primary">إضافة موظف</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped">
+      <thead><tr><th>#</th><th>كود</th><th>الاسم</th><th>الرقم القومي</th><th>تاريخ التعيين</th><th>الراتب</th><th>إجراءات</th></tr></thead>
+      <tbody>
+        {% for e in employees %}
+        <tr>
+          <td>{{ e.id }}</td>
+          <td>{{ e.employee_number }}</td>
+          <td>{{ e.first_name }} {{ e.last_name }}</td>
+          <td>{{ e.national_id }}</td>
+          <td>{{ e.hire_date }}</td>
+          <td>{{ e.salary }}</td>
+          <td>
+            <a href="/hr/employees/view/{{ e.id }}" class="btn btn-sm btn-outline-primary">عرض</a>
+            <a href="/hr/employees/edit/{{ e.id }}" class="btn btn-sm btn-outline-secondary">تعديل</a>
+            <a href="/hr/employees/{{ e.id }}/documents/view" class="btn btn-sm btn-outline-info">مستندات</a>
+            <form method="post" action="/hr/employees/delete/{{ e.id }}" style="display:inline" onsubmit="return confirm('هل تريد الحذف؟');">
+              <button class="btn btn-sm btn-danger">حذف</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">لا يوجد موظفون</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

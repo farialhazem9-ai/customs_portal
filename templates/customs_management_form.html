@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-shipping-fast text-primary"></i> {{ title }}</h3>
+            <small>{{ subtitle }}</small>
+        </div>
+        <a href="/customs-management" class="btn btn-outline-secondary btn-sm">عودة إلى القائمة</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST">
+                {% if csrf_token is defined %}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% endif %}
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">رقم الوارد</label>
+                        <input type="text" name="declaration_no" class="form-control" value="{{ customs_item.declaration_no if customs_item else '' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">تاريخ البيان</label>
+                        <input type="date" name="declaration_date" class="form-control" value="{{ customs_item.declaration_date if customs_item else '' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">الحالة</label>
+                        <select name="status" class="form-select">
+                            <option value="pending" {% if not customs_item or customs_item.status == 'pending' %}selected{% endif %}>قيد الانتظار</option>
+                            <option value="processing" {% if customs_item and customs_item.status == 'processing' %}selected{% endif %}>قيد المعالجة</option>
+                            <option value="completed" {% if customs_item and customs_item.status == 'completed' %}selected{% endif %}>مكتمل</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">ACID</label>
+                        <input type="text" name="acid" class="form-control" value="{{ customs_item.acid if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">نوع الوارد</label>
+                        <select name="inbound_type" class="form-select">
+                            <option value="">-- اختر نوع الوارد --</option>
+                            <option value="external" {% if customs_item and customs_item.inbound_type == 'external' %}selected{% endif %}>وارد خارجي</option>
+                            <option value="local_market" {% if customs_item and customs_item.inbound_type == 'local_market' %}selected{% endif %}>وارد سوق محلي</option>
+                            <option value="stopped_entry" {% if customs_item and customs_item.inbound_type == 'stopped_entry' %}selected{% endif %}>وارد دخول موقوفات</option>
+                            <option value="within_zone" {% if customs_item and customs_item.inbound_type == 'within_zone' %}selected{% endif %}>وارد داخل المنطقة</option>
+                            <option value="between_regions" {% if customs_item and customs_item.inbound_type == 'between_regions' %}selected{% endif %}>وارد بين المناطق</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">اسم المستورد</label>
+                        <input type="text" name="importer_name" class="form-control" value="{{ customs_item.importer_name if customs_item else '' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">اسم المصدر</label>
+                        <input type="text" name="exporter_name" class="form-control" value="{{ customs_item.exporter_name if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">البلد المصدر</label>
+                        <input type="text" name="origin_country" class="form-control" value="{{ customs_item.origin_country if customs_item else '' }}">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">بلد الوجهة</label>
+                        <input type="text" name="destination_country" class="form-control" value="{{ customs_item.destination_country if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">نظام الخضوع</label>
+                        <select name="regime_type" class="form-select">
+                            <option value="" {% if customs_item and not customs_item.regime_type %}selected{% endif %}>اختر النظام</option>
+                            <option value="import" {% if customs_item and customs_item.regime_type == 'import' %}selected{% endif %}>استيراد</option>
+                            <option value="export" {% if customs_item and customs_item.regime_type == 'export' %}selected{% endif %}>تصدير</option>
+                            <option value="transit" {% if customs_item and customs_item.regime_type == 'transit' %}selected{% endif %}>ترانزيت</option>
+                            <option value="re-export" {% if customs_item and customs_item.regime_type == 're-export' %}selected{% endif %}>إعادة تصدير</option>
+                            <option value="re-import" {% if customs_item and customs_item.regime_type == 're-import' %}selected{% endif %}>إعادة استيراد</option>
+                            <option value="exemption" {% if customs_item and customs_item.regime_type == 'exemption' %}selected{% endif %}>إعفاء</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">تفاصيل نظام الخضوع</label>
+                        <select name="regime_details" class="form-select">
+                            <option value="" {% if customs_item and not customs_item.regime_details %}selected{% endif %}>اختر التفاصيل</option>
+                            <option value="ميناء" {% if customs_item and customs_item.regime_details == 'ميناء' %}selected{% endif %}>ميناء</option>
+                            <option value="منطقة حرة" {% if customs_item and customs_item.regime_details == 'منطقة حرة' %}selected{% endif %}>منطقة حرة</option>
+                            <option value="دفع رسوم" {% if customs_item and customs_item.regime_details == 'دفع رسوم' %}selected{% endif %}>دفع رسوم</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">ميناء التفريغ</label>
+                        <input type="text" name="port_of_discharge" class="form-control" value="{{ customs_item.port_of_discharge if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">الوزن الإجمالي</label>
+                        <input type="number" step="0.01" name="total_weight" class="form-control" value="{{ customs_item.total_weight if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">عدد الطرود</label>
+                        <input type="number" step="1" name="package_count" class="form-control" value="{{ customs_item.package_count if customs_item else '' }}">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">اسم المخلص</label>
+                        <input type="text" name="clearance_officer_name" class="form-control" value="{{ customs_item.clearance_officer_name if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">مكانه</label>
+                        <input type="text" name="clearance_officer_location" class="form-control" value="{{ customs_item.clearance_officer_location if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">رقم الهاتف</label>
+                        <input type="text" name="clearance_officer_phone" class="form-control" value="{{ customs_item.clearance_officer_phone if customs_item else '' }}">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">رقم البطاقة الضريبية</label>
+                        <input type="text" name="tax_card_number" class="form-control" value="{{ customs_item.tax_card_number if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">رقم السجل التجاري</label>
+                        <input type="text" name="commercial_register_number" class="form-control" value="{{ customs_item.commercial_register_number if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">العملة</label>
+                        <input type="text" name="currency" class="form-control" value="{{ customs_item.currency if customs_item else '' }}">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">القيمة الاجمالية</label>
+                        <input type="number" step="0.01" name="total_value" class="form-control" value="{{ customs_item.total_value if customs_item else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">رسوم الجمارك</label>
+                        <input type="number" step="0.01" name="customs_fee" class="form-control" value="{{ customs_item.customs_fee if customs_item else '' }}">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">ملاحظات</label>
+                        <textarea name="notes" class="form-control" rows="3">{{ customs_item.notes if customs_item else '' }}</textarea>
+                    </div>
+                </div>
+
+                <hr>
+
+                <h5>إضافة بنود البيان</h5>
+                <table class="table table-bordered" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>البند / الصنف</th>
+                            <th>السريال</th>
+                            <th>السعر</th>
+                            <th>المنشأ</th>
+                            <th>العدد</th>
+                            <th>الوحدة</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if declaration_items and declaration_items|length > 0 %}
+                            {% for di in declaration_items %}
+                            <tr>
+                                <td>
+                                    <select name="item_id[]" class="form-select">
+                                        <option value="">-- اختر --</option>
+                                        {% for itm in items_list %}
+                                        <option value="{{ itm.id }}" {% if di.item_id == itm.id %}selected{% endif %}>{{ itm.item_name_ar }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input type="text" name="description[]" class="form-control mt-1" value="{{ di.description or '' }}" placeholder="وصف البند (اختياري)">
+                                </td>
+                                <td><input type="text" name="serial_number[]" class="form-control" value="{{ di.serial_number or '' }}"></td>
+                                <td><input type="number" step="0.01" name="unit_price[]" class="form-control" value="{{ di.unit_price or '' }}"></td>
+                                <td><input type="text" name="origin[]" class="form-control" value="{{ di.origin_country or '' }}"></td>
+                                <td><input type="number" step="0.01" name="qty[]" class="form-control" value="{{ di.quantity or '' }}"></td>
+                                <td>
+                                    <select name="unit_id[]" class="form-select">
+                                        <option value="">-- --</option>
+                                        {% for u in units_list %}
+                                        <option value="{{ u.id }}" {% if di.unit_id == u.id %}selected{% endif %}>{{ u.unit_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><button type="button" class="btn btn-danger" onclick="removeRow(this)">حذف</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td>
+                                <select name="item_id[]" class="form-select">
+                                    <option value="">-- اختر --</option>
+                                    {% for itm in items_list %}
+                                    <option value="{{ itm.id }}">{{ itm.item_name_ar }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="text" name="description[]" class="form-control mt-1" placeholder="وصف البند (اختياري)">
+                            </td>
+                            <td><input type="text" name="serial_number[]" class="form-control"></td>
+                            <td><input type="number" step="0.01" name="unit_price[]" class="form-control"></td>
+                            <td><input type="text" name="origin[]" class="form-control"></td>
+                            <td><input type="number" step="0.01" name="qty[]" class="form-control"></td>
+                            <td>
+                                <select name="unit_id[]" class="form-select">
+                                    <option value="">-- --</option>
+                                    {% for u in units_list %}
+                                    <option value="{{ u.id }}">{{ u.unit_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn btn-danger" onclick="removeRow(this)">حذف</button></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+
+                <button type="button" class="btn btn-info" onclick="addRow()">إضافة بند</button>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+                    <a href="/customs-management" class="btn btn-secondary">إلغاء</a>
+                </div>
+
+                <script>
+                function addRow(){
+                    const table = document.querySelector('#itemsTable tbody');
+                    const first = table.rows[0];
+                    const clone = first.cloneNode(true);
+                    clone.querySelectorAll('input').forEach(i=>i.value='');
+                    clone.querySelectorAll('select').forEach(s=>s.selectedIndex=0);
+                    table.appendChild(clone);
+                }
+                function removeRow(btn){
+                    const rows = document.querySelectorAll('#itemsTable tbody tr');
+                    if(rows.length>1){
+                        btn.closest('tr').remove();
+                    }
+                }
+                </script>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

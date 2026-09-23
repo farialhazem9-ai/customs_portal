@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h3>📦 أرصدة المخزون</h3>
+
+    <table class="table table-bordered table-striped">
+
+        <thead>
+            <tr>
+                <th>الكود</th>
+                <th>الصنف</th>
+                <th>الرصيد الحالي</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.item_code }}</td>
+                <td>{{ item.item_name_ar }}</td>
+                <td>{{ item.current_balance }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endblock %}

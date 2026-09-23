@@ -1,0 +1,29 @@
+-- Reconcile legacy Railway databases with the current customs application schema.
+
+ALTER TABLE items
+  ADD COLUMN IF NOT EXISTS current_balance DECIMAL(15,2) NOT NULL DEFAULT 0.00;
+
+ALTER TABLE customs_declarations
+  ADD COLUMN IF NOT EXISTS inbound_type VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS exporter_name VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS origin_country VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS regime_type VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS regime_details TEXT NULL,
+  ADD COLUMN IF NOT EXISTS port_of_loading VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS port_of_destination VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS port_of_discharge VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS shipment_reference VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS acid VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS total_weight DECIMAL(18,2) NULL,
+  ADD COLUMN IF NOT EXISTS package_count INT NULL,
+  ADD COLUMN IF NOT EXISTS currency VARCHAR(20) NULL,
+  ADD COLUMN IF NOT EXISTS tax_card_number VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS commercial_register_number VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS clearance_officer_name VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS clearance_officer_location VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS clearance_officer_phone VARCHAR(50) NULL,
+  ADD COLUMN IF NOT EXISTS approval_date DATE NULL,
+  ADD COLUMN IF NOT EXISTS entry_date DATE NULL,
+  ADD COLUMN IF NOT EXISTS shipment_received_at DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS distribution_time DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS notes TEXT NULL;

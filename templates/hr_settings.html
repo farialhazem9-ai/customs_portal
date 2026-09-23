@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>إعدادات الرواتب (HR)</h2>
+  <div id="alerts"></div>
+  <table class="table table-sm" id="config-table">
+    <thead><tr><th>المفتاح</th><th>القيمة</th><th>الوصف</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+async function loadConfigs(){
+  const res = await fetch('/hr/config');
+  const data = await res.json();
+  const tbody = document.querySelector('#config-table tbody');
+  tbody.innerHTML = '';
+  data.forEach(c=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.config_key}</td>
+      <td><input class="form-control form-control-sm" data-key="${c.config_key}" value='${c.config_value.replace(/'/g,"&#39;")}'></td>
+      <td><input class="form-control form-control-sm" data-desc="${c.config_key}" value='${(c.description||'').replace(/'/g,"&#39;")}'></td>
+      <td><button class="btn btn-sm btn-primary" data-save="${c.config_key}">حفظ</button></td>`;
+    tbody.appendChild(tr);
+  });
+  document.querySelectorAll('[data-save]').forEach(btn=>btn.addEventListener('click', async (e)=>{
+    const key = btn.getAttribute('data-save');
+    const val = document.querySelector(`input[data-key="${key}"]`).value;
+    const desc = document.querySelector(`input[data-desc="${key}"]`).value;
+    const r = await fetch('/hr/config/'+encodeURIComponent(key), {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({config_value: val, description: desc})
+    });
+    if(r.ok){ showAlert('تم الحفظ','success'); } else { showAlert('خطأ أثناء الحفظ','danger'); }
+  }));
+}
+function showAlert(msg, type='success'){
+  const a = document.getElementById('alerts');
+  a.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(()=>a.innerHTML='',3000);
+}
+window.addEventListener('load', loadConfigs);
+</script>
+{% endblock %}

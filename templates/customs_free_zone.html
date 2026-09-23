@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} | إدارة الجمارك{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-pill {
+        display: inline-block;
+        padding: .35rem .75rem;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        min-width: 90px;
+        text-align: center;
+    }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-draft { background: #e2e8f0; color: #334155; }
+    .status-default { background: #dbeafe; color: #1d4ed8; }
+    .table td, .table th { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-shipping-fast text-primary"></i> {{ title }}</h3>
+            <small>{{ subtitle }}</small>
+        </div>
+        <a href="/customs-management" class="btn btn-secondary btn-sm">العودة</a>
+    </div>
+
+    {% if customs_items and customs_items|length > 0 %}
+    <div class="card shadow-sm border-0">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>السجلات الحالية لهذا الفرع</div>
+            <div class="text-muted">عدد السجلات: {{ customs_items|length }}</div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الوارد</th>
+                            <th>ACID</th>
+                            <th>التاريخ</th>
+                            <th>المستورد</th>
+                            <th>اسم المصدر</th>
+                            <th>بلد المصدر</th>
+                            <th>بلد الوجهة</th>
+                            <th>ميناء التفريغ</th>
+                            <th>الوزن</th>
+                            <th>العدد</th>
+                            <th>القيمة</th>
+                            <th>الرسوم</th>
+                            <th>الحالة</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in customs_items %}
+                        <tr>
+                            <td>{{ item.id }}</td>
+                            <td><span class="badge bg-secondary">{{ item.declaration_no or '-' }}</span></td>
+                            <td>{{ item.acid or '-' }}</td>
+                            <td>{{ item.declaration_date or '-' }}</td>
+                            <td>{{ item.importer_name or '-' }}</td>
+                            <td>{{ item.exporter_name or '-' }}</td>
+                            <td>{{ item.origin_country or '-' }}</td>
+                            <td>{{ item.destination_country or '-' }}</td>
+                            <td>{{ item.port_of_discharge or '-' }}</td>
+                            <td>{{ item.total_weight or '-' }}</td>
+                            <td>{{ item.package_count or '-' }}</td>
+                            <td>{{ '%.2f' % (item.total_value or 0) }}</td>
+                            <td>{{ '%.2f' % (item.customs_fee or 0) }}</td>
+                            <td>
+                                {% set status = (item.status or 'pending')|lower %}
+                                {% if status == 'completed' %}
+                                    <span class="status-pill status-completed">مكتمل</span>
+                                {% elif status == 'pending' %}
+                                    <span class="status-pill status-pending">قيد الانتظار</span>
+                                {% elif status == 'draft' %}
+                                    <span class="status-pill status-draft">مسودة</span>
+                                {% else %}
+                                    <span class="status-pill status-default">{{ item.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td><a href="/customs-management/view/{{ item.id }}" class="btn btn-sm btn-outline-primary">عرض</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm border-0">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-map-marked-alt fa-3x text-primary mb-3"></i>
+            <h4 class="mb-3">{{ title }}</h4>
+            <p class="text-muted mb-0">
+                لا توجد واردات معتمدة حالياً. ستظهر الشحنة هنا بعد اعتمادها.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

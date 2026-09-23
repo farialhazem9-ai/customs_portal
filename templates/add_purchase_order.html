@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+<div class="card shadow">
+
+<div class="card-header bg-primary text-white">
+📋 إنشاء أمر شراء
+</div>
+
+<div class="card-body">
+
+<form method="POST">
+
+<div class="mb-3">
+<label>المورد</label>
+
+<select name="vendor_id"
+        class="form-select"
+        required>
+
+{% for vendor in vendors %}
+<option value="{{ vendor.id }}">
+{{ vendor.vendor_name }}
+</option>
+{% endfor %}
+
+</select>
+</div>
+
+<div class="mb-3">
+<label>تاريخ الطلب</label>
+
+<input type="date"
+       name="order_date"
+       class="form-control"
+       required>
+</div>
+
+<div class="mb-3">
+<label>تاريخ التسليم المتوقع</label>
+
+<input type="date"
+       name="expected_delivery_date"
+       class="form-control">
+</div>
+
+<div class="mb-3">
+<label>ملاحظات</label>
+
+<textarea
+    name="notes"
+    class="form-control"></textarea>
+</div>
+
+<button class="btn btn-success">
+💾 إنشاء الأمر
+</button>
+
+</form>
+
+</div>
+</div>
+</div>
+
+{% endblock %}

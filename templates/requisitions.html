@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3><i class="fas fa-tasks text-primary"></i> طلبات الشراء المعلقة</h3>
+            <p class="text-muted mb-0">ابحث في الطلبات الحالية أو استخدم البحث العام.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <input type="search" id="requisitionSearch" class="form-control form-control-sm" placeholder="بحث في الطلبات...">
+            <a href="/requisition/add{% if selected_department %}?department={{ selected_department }}{% endif %}" class="btn btn-primary btn-sm">إضافة طلب جديد</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover text-center align-middle" id="requisitionsTable">
+            <thead class="table-dark">
+                <tr>
+                    <th>الصنف</th>
+                    <th>الرصيد الحالي</th>
+                    <th>المخزن</th>
+                    <th>الكمية</th>
+                    <th>مقدم الطلب</th>
+                    <th>السبب</th>
+                    <th>الحالة</th>
+                    <th>الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requisitions %}
+                <tr>
+                    <td>{{ req.item_name_ar }}</td>
+                    <td>{{ req.current_stock or 0 }}</td>
+                    <td>{{ req.store_name or 'غير محدد' }}</td>
+                    <td>{{ req.quantity }}</td>
+                    <td>{{ req.user }}</td>
+                    <td>{{ req.reason }}</td>
+                    <td>
+                        <span class="badge {{ 'bg-warning text-dark' if req.status == 'pending' else ('bg-success' if req.status == 'approved' else 'bg-danger') }}">
+                            {{ req.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            {% if req.status == 'pending' %}
+                                <a href="/add-quotation/{{ req.id }}" class="btn btn-sm btn-info text-white" title="إضافة عرض سعر">
+                                    <i class="fas fa-tags"></i>
+                                </a>
+                                
+                                <form action="/requisition/approve/{{ req.id }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-success" title="اعتماد" onclick="return confirm('هل أنت متأكد من اعتماد هذا الطلب؟')">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                
+                                <form action="/requisition/reject/{{ req.id }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="رفض" onclick="return confirm('هل أنت متأكد من رفض هذا الطلب؟')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                            {% elif req.status == 'approved' %}
+                                <a href="/create_order?requisition_id={{ req.id }}&item_id={{ req.item_name_ar }}&qty={{ req.quantity }}" class="btn btn-sm btn-primary" title="إنشاء أمر شراء">
+                                    <i class="fas fa-file-invoice"></i> أمر شراء
+                                </a>
+                            {% endif %}
+                            
+                            <a href="/requisition/edit/{{ req.id }}" class="btn btn-sm btn-warning" title="تعديل">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            
+                            <form action="/requisition/delete/{{ req.id }}" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" title="حذف" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">لا توجد طلبات مسجلة حالياً.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('requisitionSearch');
+        const table = document.getElementById('requisitionsTable');
+        if (!searchInput || !table) return;
+
+        searchInput.addEventListener('keyup', function () {
+            const value = this.value.trim().toLowerCase();
+            table.querySelectorAll('tbody tr').forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(value) ? '' : 'none';
+            });
+        });
+    });
+</script>

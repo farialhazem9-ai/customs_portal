@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow col-md-6 mx-auto">
+        <div class="card-header bg-warning"><h5>تعديل الفئة</h5></div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">اسم الفئة الجديد</label>
+                    <input type="text" name="category_name_ar" class="form-control" value="{{ category.category_name_ar }}" required>
+                </div>
+                <button type="submit" class="btn btn-success">حفظ التغييرات</button>
+                <a href="/categories" class="btn btn-secondary">إلغاء</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

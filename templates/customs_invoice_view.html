@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}عرض الفاتورة | نظام الجمارك والمخازن{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-file-invoice text-primary"></i> عرض الفاتورة</h3>
+            <small>معلومات الفاتورة وبنودها.</small>
+        </div>
+        <a href="/customs-management/invoices" class="btn btn-secondary btn-sm">العودة</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3"><strong>رقم الفاتورة:</strong> {{ invoice.invoice_no or ('INV-' ~ invoice.id) }}</div>
+                <div class="col-md-3"><strong>النوع:</strong> {% if invoice.invoice_type == 'export_invoice' %}فاتورة صادر{% elif invoice.invoice_type=='final_sale' %}فاتورة بيع نهائي{% elif invoice.invoice_type=='umbrella_transfer' %}تحويل مظلة{% elif invoice.invoice_type=='return_export' %}إعادة صادر{% else %}-{% endif %}</div>
+                <div class="col-md-3"><strong>التاريخ:</strong> {{ invoice.invoice_date or invoice.created_at }}</div>
+                <div class="col-md-3"><strong>الطرف:</strong> {{ invoice.party or '-' }}</div>
+            </div>
+            <div class="mb-3">
+                <a href="/customs-management/invoice/{{ invoice.id }}/edit" class="btn btn-sm btn-primary">تعديل</a>
+                <form method="post" action="/customs-management/invoice/{{ invoice.id }}/delete" style="display:inline-block;" onsubmit="return confirm('هل أنت متأكد من حذف الفاتورة؟');">
+                    <button class="btn btn-sm btn-danger">حذف</button>
+                </form>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.print();">طباعة / PDF</button>
+                <a href="/customs-management/invoice/{{ invoice.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة (نموذج)</a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover text-center align-middle">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>البند</th>
+                            <th>الكمية</th>
+                            <th>الوحدة</th>
+                            <th>سعر الوحدة</th>
+                            <th>الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in items %}
+                        <tr>
+                            <td>{{ it.id }}</td>
+                            <td>{{ it.item_name_ar or '-' }}</td>
+                            <td>{{ it.quantity }}</td>
+                            <td>{{ it.unit_name or '-' }}</td>
+                            <td>{{ '%.2f' % (it.unit_price or 0) }}</td>
+                            <td>{{ '%.2f' % ((it.quantity or 0) * (it.unit_price or 0)) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center">لا توجد بنود.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5" class="text-end"><strong>الإجمالي العام:</strong></td>
+                            <td><strong>{{ '%.2f' % (invoice.total_amount or 0) }}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

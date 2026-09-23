@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} | نظام الجمارك والمخازن{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-file-invoice text-primary"></i> {{ title }}</h3>
+            <small>املأ بيانات الفاتورة ثم اضغط حفظ.</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if invoice %}
+            <a href="/customs-management/invoice/{{ invoice.id }}" class="btn btn-outline-secondary btn-sm">عرض</a>
+            <a href="/customs-management/invoice/{{ invoice.id }}/print" target="_blank" class="btn btn-outline-secondary btn-sm">طباعة</a>
+            {% else %}
+            <button class="btn btn-outline-secondary btn-sm" disabled title="احفظ أولاً">عرض</button>
+            <button class="btn btn-outline-secondary btn-sm" disabled title="احفظ أولاً">طباعة</button>
+            {% endif %}
+            <a href="/customs-management" class="btn btn-secondary btn-sm">العودة</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">رقم الفاتورة</label>
+                        <input type="text" name="invoice_no" class="form-control" value="{{ invoice.invoice_no if invoice else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">التاريخ</label>
+                        <input type="date" name="invoice_date" class="form-control" value="{{ invoice.invoice_date if invoice and invoice.invoice_date else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">المستلم / الطرف</label>
+                        <input type="text" name="recipient" class="form-control" value="{{ invoice.party if invoice else '' }}">
+                    </div>
+
+                    <div class="col-md-4 mt-2">
+                        <label class="form-label">ربط بالبيان (ACID)</label>
+                        <select name="declaration_id" id="declarationSelect" class="form-select">
+                            <option value="">-- ربط بالبيان --</option>
+                            {% if declarations_list %}
+                                {% for d in declarations_list %}
+                                <option value="{{ d.id }}" data-acid="{{ d.acid }}" {% if invoice and invoice.declaration_id == d.id %}selected{% endif %}>{{ d.declaration_no }} - {{ d.acid }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+
+                <hr>
+                <h6>بنود الفاتورة</h6>
+                <div id="itemsContainer">
+                    {% if existing_items and existing_items|length > 0 %}
+                        {% for ex in existing_items %}
+                        <div class="row g-2 mb-2 invoice-item-row">
+                            <div class="col-md-5">
+                                <select name="item_id[]" class="form-select">
+                                    <option value="">-- اختر بند --</option>
+                                    {% for it in items_list %}
+                                    <option value="{{ it.id }}" {% if it.id == ex.item_id %}selected{% endif %}>{{ it.item_name_ar }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" name="unit_price[]" class="form-control" placeholder="السعر" value="{{ ex.unit_price }}">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.0001" name="qty[]" class="form-control" placeholder="الكمية" value="{{ ex.quantity }}">
+                            </div>
+                            <div class="col-md-2">
+                                <select name="unit_id[]" class="form-select">
+                                    <option value="">الوحدة</option>
+                                    {% for u in units_list %}
+                                    <option value="{{ u.id }}" {% if u.id == ex.unit_id %}selected{% endif %}>{{ u.unit_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8 mt-2">
+                                <input type="text" name="description[]" class="form-control" placeholder="وصف / ملاحظات" value="{{ ex.description }}">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-outline-danger btn-sm remove-item">-</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="row g-2 mb-2 invoice-item-row">
+                            <div class="col-md-5">
+                                <select name="item_id[]" class="form-select">
+                                    <option value="">-- اختر بند --</option>
+                                    {% for it in items_list %}
+                                    <option value="{{ it.id }}">{{ it.item_name_ar }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" name="unit_price[]" class="form-control" placeholder="السعر">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.0001" name="qty[]" class="form-control" placeholder="الكمية">
+                            </div>
+                            <div class="col-md-2">
+                                <select name="unit_id[]" class="form-select">
+                                    <option value="">الوحدة</option>
+                                    {% for u in units_list %}
+                                    <option value="{{ u.id }}">{{ u.unit_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8 mt-2">
+                                <input type="text" name="description[]" class="form-control" placeholder="وصف / ملاحظات">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-outline-danger btn-sm remove-item">-</button>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="mt-2">
+                    <button type="button" id="addItemBtn" class="btn btn-sm btn-outline-primary">إضافة بند</button>
+                </div>
+
+                <hr>
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary">حفظ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'addItemBtn'){
+        const container = document.getElementById('itemsContainer');
+        // clone an invoice-item-row if exists, otherwise clone the first child
+        const template = container.querySelector('.invoice-item-row');
+        const row = template ? template.cloneNode(true) : container.firstElementChild.cloneNode(true);
+        row.querySelectorAll('input').forEach(i => i.value='');
+        row.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+        container.appendChild(row);
+    }
+    if(e.target && e.target.classList.contains('remove-item')){
+        const row = e.target.closest('.invoice-item-row');
+        const container = document.getElementById('itemsContainer');
+        if(container.querySelectorAll('.invoice-item-row').length > 1){
+            row.remove();
+        }
+    }
+});
+</script>
+{% endblock %}

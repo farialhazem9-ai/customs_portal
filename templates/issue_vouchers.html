@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .card {
+        border: none;
+        border-radius: 12px;
+    }
+
+    .card-header {
+        background: #dc3545;
+        color: white;
+        font-weight: bold;
+    }
+
+    .table th {
+        background: #f8f9fa;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .table td {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .badge {
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>أذونات الصرف</span>
+            <a href="/issue/add" class="btn btn-light btn-sm">+ إنشاء إذن صرف</a>
+        </div>
+
+        <div class="card-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% if grouped_vouchers %}
+                {% for dept, list in grouped_vouchers.items() %}
+                    <h5 class="mb-2">المخزن: {{ dept }}</h5>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>رقم الإذن</th>
+                                    <th>العقد / المناقصة / أمر الشراء</th>
+                                    <th>نوع الخدمة</th>
+                                    <th>التاريخ</th>
+                                    <th>الأصناف</th>
+                                    <th>المستلم</th>
+                                    <th>الحالة</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in list %}
+                                    <tr>
+                                        <td>{{ row.id }}</td>
+                                        <td>{{ row.voucher_no }}</td>
+                                        <td>{{ row.reference_no or '-' }}</td>
+                                        <td>
+                                            {% if row.service_type == 'rental' %}إيجار
+                                            {% elif row.service_type == 'final_sale' %}بيع نهائي
+                                            {% elif row.service_type == 'service' %}تأدية خدمة
+                                            {% else %}-{% endif %}
+                                        </td>
+                                        <td>{{ row.issue_date }}</td>
+                                        <td>{{ row.items_list or '-' }}</td>
+                                        <td>{{ row.receiver_name }}</td>
+                                        <td>
+                                            {% if row.status == 'approved' %}
+                                                <span class="badge bg-success">معتمد</span>
+                                            {% elif row.status == 'cancelled' %}
+                                                <span class="badge bg-danger">ملغي</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">مسودة</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="/issue-vouchers/view/{{ row.id }}" class="btn btn-info btn-sm">عرض</a>
+                                            {% if row.status == 'draft' %}
+                                                <form method="post" action="/issue-vouchers/{{ row.id }}/approve" style="display:inline">
+                                                    {% if csrf_token is defined %}
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    {% endif %}
+                                                    <button type="submit" class="btn btn-success btn-sm">اعتماد</button>
+                                                </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">لا توجد أذونات صرف</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

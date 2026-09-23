@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="fas fa-chart-line text-primary"></i> أفضل عروض الأسعار (الأرخص)</h3>
+        <a href="/quotations/add" class="btn btn-outline-primary">
+            <i class="fas fa-plus"></i> إضافة عرض سعر جديد
+        </a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover text-center align-middle">
+            <thead class="table-primary">
+                <tr>
+                    <th>الصنف</th>
+                    <th>أفضل سعر</th>
+                    <th>المورد</th>
+                    <th>تاريخ الصلاحية</th>
+                    <th>الإجراء</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for deal in best_deals %}
+                <tr>
+                    <td>{{ deal.item_name_ar }}</td>
+                    <td class="text-success fw-bold">{{ "%.2f"|format(deal.min_price) }} ج.م</td>
+                    <td>{{ deal.supplier_name }}</td>
+                    <td>{{ deal.valid_until }}</td>
+                    <td>
+                        <a href="/quotation/order/{{ deal.id }}" 
+                           class="btn btn-primary btn-sm"
+                           onclick="return confirm('سيتم إنشاء أمر شراء بناءً على هذا العرض، هل أنت متأكد؟')">
+                            <i class="fas fa-shopping-bag"></i> إصدار أمر شراء
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">لا توجد عروض أسعار مسجلة حالياً.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

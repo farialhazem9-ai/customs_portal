@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+uploads/
+tmp/
+cookies.txt
+__resp*.html
+__login_resp.html
+__post_resp.html

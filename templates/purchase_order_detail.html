@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>تفاصيل أمر شراء: <span class="badge bg-secondary">{{ order.po_number }}</span></h3>
+        <div>
+            <a href="/dashboard" class="btn btn-sm btn-outline-secondary me-1" title="الصفحة الرئيسية"><i class="fas fa-home"></i></a>
+    </div>
+
+    <div class="card p-3 mb-3">
+        <div class="row">
+            <div class="col-md-4"><strong>المورد:</strong> {{ order.supplier_name or 'غير محدد' }}</div>
+            <div class="col-md-4"><strong>تاريخ الطلب:</strong> {{ order.order_date }}</div>
+            <div class="col-md-4"><strong>الحالة:</strong> <span class="badge bg-success">{{ order.status }}</span></div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="table-dark text-center">
+                <tr>
+                    <th>#</th>
+                    <th>الصنف</th>
+                    <th>الكمية</th>
+                    <th>سعر الوحدة</th>
+                    <th>الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in order_items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ it.item_name_ar or 'غير محدد' }}</td>
+                    <td class="text-center">{{ it.quantity }}</td>
+                    <td class="text-end">{{ "%.2f"|format(it.unit_price or 0) }} ج.م</td>
+                    <td class="text-end">{{ "%.2f"|format(it.line_total or (it.quantity|float * it.unit_price|float)) }} ج.م</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="4" class="text-end">الإجمالي الفرعي</th>
+                    <th class="text-end">{{ "%.2f"|format(order.subtotal or 0) }} ج.م</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endblock %}

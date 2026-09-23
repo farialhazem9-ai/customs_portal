@@ -1,0 +1,9 @@
+{% if voucher.status == 'draft' %}
+<form method="POST"
+      action="/issue-vouchers/approve/{{ voucher.id }}">
+    <button type="submit"
+            class="btn btn-success">
+        اعتماد إذن الصرف
+    </button>
+</form>
+{% endif %}

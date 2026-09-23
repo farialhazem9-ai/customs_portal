@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card shadow border-0">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3>📦 {{ 'إدارة المشتريات المحلية' if (request.args.get('department') or 'local_purchases') == 'local_purchases' else 'إدارة المشتريات الخارجية' }}</h3>
+            <div class="d-flex gap-2 align-items-center">
+                <select class="form-select form-select-sm w-auto" onchange="location.href='/items?department=' + this.value">
+                    <option value="local_purchases" {% if (request.args.get('department') or 'local_purchases') == 'local_purchases' %}selected{% endif %}>المشتريات المحلية</option>
+                    <option value="external_purchases" {% if (request.args.get('department') or 'local_purchases') == 'external_purchases' %}selected{% endif %}>المشتريات الخارجية</option>
+                </select>
+                <a href="/items/add/{{ request.args.get('department') or 'local_purchases' }}" class="btn btn-light">➕ إضافة صنف</a>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <input type="text" id="searchInput" class="form-control" placeholder="بحث بالكود أو اسم الصنف">
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>الكود</th>
+                            <th>اسم الصنف</th>
+                            <th>الفئة</th>
+                            <th>الوحدة</th>
+                            <th>الرصيد</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.id }}</td>
+                            <td>{{ item.item_code }}</td>
+                            <td>{{ item.item_name_ar }}</td>
+                            <td>{{ item.category_name_ar }}</td>
+                            <td>{{ item.unit_name }}</td>
+                            <td>
+                                <span class="badge bg-success fs-6">{{ item.current_balance }}</span>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="/stock/card/{{ item.id }}" class="btn btn-info btn-sm">📑 كرت</a>
+                                    
+                                    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#balanceModal{{ item.id }}">
+                                        ➕ رصيد
+                                    </button>
+
+                                    <a href="/items/edit/{{ item.id }}" class="btn btn-warning btn-sm">✏️ تعديل</a>
+
+                                    {% if 'admin' in user_permissions %}
+                                        <form action="{{ url_for('delete_item', id=item.id) }}" method="POST" style="display:inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('هل أنت متأكد من حذف هذا الصنف نهائياً؟')">
+                                                🗑 حذف
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="balanceModal{{ item.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-success text-white">
+                                        <h5 class="modal-title">إضافة رصيد: {{ item.item_name_ar }}</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="/items/add-balance/{{ item.id }}">
+                                        <input type="hidden" name="department" value="{{ request.args.get('department') or 'local_purchases' }}">
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">الكمية المضافة</label>
+                                                <input type="number" name="qty" class="form-control" step="0.01" min="0.01" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="submit" class="btn btn-success">💾 حفظ</button>
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById("searchInput").addEventListener("keyup", function() {
+        let value = this.value.toLowerCase();
+        let rows = document.querySelectorAll("#itemsTable tbody tr");
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
+        });
+    });
+</script>
+{% endblock %}

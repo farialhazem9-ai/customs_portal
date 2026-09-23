@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}الملف الشخصي للموظف{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>الملف الشخصي</h3>
+      <p>{{ employee.first_name }} {{ employee.last_name }} - {{ employee.employee_number }}</p>
+    </div>
+    <div>
+      <a href="/hr/employees" class="btn btn-secondary">رجوع</a>
+      <a href="/hr/employees/{{ employee.id }}/documents/view" class="btn btn-info">المستندات</a>
+    </div>
+  </div>
+
+  {% if message %}
+  <div class="alert alert-success">{{ message }}</div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card p-4">
+        <h5>تفاصيل الموظف</h5>
+        <dl class="row mt-3">
+          <dt class="col-sm-4">الاسم</dt><dd class="col-sm-8">{{ employee.first_name }} {{ employee.last_name }}</dd>
+          <dt class="col-sm-4">الكود</dt><dd class="col-sm-8">{{ employee.employee_number }}</dd>
+          <dt class="col-sm-4">الرقم القومي</dt><dd class="col-sm-8">{{ employee.national_id }}</dd>
+          <dt class="col-sm-4">تاريخ التعيين</dt><dd class="col-sm-8">{{ employee.hire_date }}</dd>
+          <dt class="col-sm-4">الراتب</dt><dd class="col-sm-8">{{ employee.salary }}</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card p-4">
+        <h5>تشغيل القسيمة</h5>
+        <form method="post">
+          <input type="hidden" name="action" value="run_payroll">
+          <button class="btn btn-primary">إنشاء قسيمة راتب</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 p-4">
+    <h5>آخر قسائم الرواتب</h5>
+    <div class="table-responsive">
+      <table class="table table-striped mt-3">
+        <thead><tr><th>#</th><th>الإجمالي</th><th>الخصومات</th><th>الصافي</th><th>التاريخ</th></tr></thead>
+        <tbody>
+          {% for p in payslips %}
+          <tr>
+            <td>{{ p.id }}</td>
+            <td>{{ p.gross_salary }}</td>
+            <td>{{ p.total_deductions }}</td>
+            <td>{{ p.net_salary }}</td>
+            <td>{{ p.created_at }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">لا توجد قسائم حتى الآن</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

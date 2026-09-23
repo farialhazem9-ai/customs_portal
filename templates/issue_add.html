@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow-lg">
+
+<div class="card-header bg-danger text-white">
+<h3>{{ 'إذن صرف للمشتريات المحلية' if selected_department == 'local_purchases' else 'إذن صرف' }}</h3>
+</div>
+
+<div class="card-body">
+
+<form method="POST">
+<input type="hidden" name="department" value="{{ selected_department or '' }}">
+
+<div class="row">
+
+<div class="col-md-6 mb-3">
+<label>المخزن</label>
+
+<select name="store_id"
+class="form-select">
+
+{% for s in stores %}
+<option value="{{ s.id }}">
+{{ s.store_name }}
+</option>
+{% endfor %}
+
+</select>
+</div>
+
+<div class="col-md-6 mb-3">
+<label>الصنف</label>
+
+<select name="item_id"
+class="form-select" id="itemSelect">
+
+{% for item in items %}
+<option value="{{ item.id }}" data-stock="{{ item.current_stock }}">
+{{ item.item_code }}
+-
+{{ item.item_name_ar }}
+(رصيد {{ item.current_stock }})
+</option>
+{% endfor %}
+
+</select>
+</div>
+
+<div class="col-md-6 mb-3">
+<label>الرصيد الحالي</label>
+<input type="text" id="currentStock" class="form-control" readonly value="{{ items[0].current_stock if items else 0 }}">
+<div id="stockMessage" class="form-text text-danger mt-1"></div>
+</div>
+
+<div class="col-md-4 mb-3">
+<label>الكمية</label>
+<input type="number"
+step="0.01"
+name="qty"
+class="form-control"
+required>
+</div>
+
+<div class="col-md-8 mb-3">
+<label>ملاحظات</label>
+<input type="text"
+name="notes"
+class="form-control">
+</div>
+
+</div>
+
+<button class="btn btn-danger">
+اعتماد إذن الصرف
+</button>
+
+</form>
+
+</div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const itemSelect = document.getElementById('itemSelect');
+        const currentStock = document.getElementById('currentStock');
+        const stockMessage = document.getElementById('stockMessage');
+
+        function updateStockValue() {
+            const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+            const stock = Number(selectedOption ? selectedOption.dataset.stock || 0 : 0);
+            currentStock.value = stock;
+            if (stock <= 0) {
+                stockMessage.textContent = 'الرصيد صفر، مطلوب شراء.';
+                currentStock.classList.add('border-danger');
+            } else if (stock <= 5) {
+                stockMessage.textContent = 'الرصيد منخفض، يفضل طلب شراء قريباً.';
+                currentStock.classList.remove('border-danger');
+            } else {
+                stockMessage.textContent = '';
+                currentStock.classList.remove('border-danger');
+            }
+        }
+
+        if (itemSelect && currentStock) {
+            itemSelect.addEventListener('change', updateStockValue);
+            updateStockValue();
+        }
+    });
+</script>
+
+{% endblock %}

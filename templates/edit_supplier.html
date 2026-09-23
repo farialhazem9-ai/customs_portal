@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow col-md-6 mx-auto">
+        <div class="card-header bg-warning"><h5>تعديل بيانات المورد</h5></div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">اسم المورد</label>
+                    <input type="text" name="name" class="form-control" value="{{ supplier.supplier_name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">رقم الهاتف</label>
+                    <input type="text" name="phone" class="form-control" value="{{ supplier.phone }}">
+                </div>
+                <button type="submit" class="btn btn-success">حفظ التغييرات</button>
+                <a href="/suppliers" class="btn btn-secondary">إلغاء</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

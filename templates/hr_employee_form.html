@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}نموذج الموظف{% endblock %}
+{% block content %}
+<div class="container">
+  <h3>{% if employee %}تعديل موظف{% else %}إضافة موظف{% endif %}</h3>
+  <form method="post">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">كود الموظف</label>
+        <input name="employee_number" class="form-control" value="{{ employee.employee_number if employee }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">الاسم الأول</label>
+        <input name="first_name" class="form-control" value="{{ employee.first_name if employee }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">الاسم الأخير</label>
+        <input name="last_name" class="form-control" value="{{ employee.last_name if employee }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">الرقم القومي</label>
+        <input name="national_id" class="form-control" value="{{ employee.national_id if employee }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">تاريخ التعيين</label>
+        <input type="date" name="hire_date" class="form-control" value="{{ employee.hire_date if employee }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">الراتب الشهري</label>
+        <input name="salary" class="form-control" value="{{ employee.salary if employee }}">
+      </div>
+      <div class="col-12 mt-3">
+        <button class="btn btn-primary">حفظ</button>
+        <a href="/hr/employees" class="btn btn-secondary">إلغاء</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

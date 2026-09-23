@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة الجمارك | نظام الجمارك والمخازن{% endblock %}
+
+{% block extra_css %}
+<style>
+    .customs-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .customs-header h3 {
+        margin: 0;
+        font-weight: 700;
+    }
+    .customs-actions {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+    .customs-actions .btn {
+        border-radius: 999px;
+        padding: .6rem 1.1rem;
+        font-weight: 600;
+    }
+    .status-pill {
+        display: inline-block;
+        padding: .45rem .8rem;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        min-width: 92px;
+        text-align: center;
+    }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-draft { background: #e2e8f0; color: #334155; }
+    .status-default { background: #dbeafe; color: #1d4ed8; }
+    .mini-date {
+        width: 140px;
+        min-width: 140px;
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        padding: .4rem .8rem;
+        font-size: 12px;
+    }
+    .action-stack {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+    .action-stack form {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        margin: 0;
+    }
+    .table thead th {
+        white-space: nowrap;
+    }
+    @media (max-width: 768px) {
+        .action-stack {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .mini-date {
+            width: 120px;
+            min-width: 120px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="customs-header">
+        <div>
+            <h3><i class="fas fa-shipping-fast text-primary"></i> إدارة الجمارك</h3>
+            <small class="text-muted">إدارة الشحنات والوثائق الجمركية بشكل مرتب وسهل.</small>
+        </div>
+        <div class="customs-actions">
+            <a href="/customs-management/urgent-release" class="btn btn-danger">إفراج عاجل</a>
+            <a href="/customs-management/create-export-invoice" class="btn btn-warning">التسوية بصادر</a>
+            <a href="/customs-management/new" class="btn btn-primary">إضافة وارد جديد</a>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>قائمة الإجراءات الجمركية</div>
+            <div class="text-muted">عدد الإجراءات: {{ customs_items|length }}</div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-custom table-hover align-middle mb-0 text-center">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الوارد</th>
+                            <th>التاريخ</th>
+                            <th>المستورد</th>
+                            <th>نوع الوارد</th>
+                            <th>الإجمالي</th>
+                            <th>الحالة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in customs_items %}
+                        <tr>
+                            <td>{{ item.id }}</td>
+                            <td><span class="badge bg-secondary">{{ item.declaration_no }}</span></td>
+                            <td>{{ item.declaration_date }}</td>
+                            <td>{{ item.importer_name or '-' }}</td>
+                            <td>{{ item.inbound_type or '-' }}</td>
+                            <td>{{ '%.2f' % (item.total_amount or 0) }}</td>
+                            <td>
+                                {% set status = (item.status or 'pending')|lower %}
+                                {% if status == 'completed' %}
+                                    <span class="status-pill status-completed">مكتمل</span>
+                                {% elif status == 'pending' %}
+                                    <span class="status-pill status-pending">قيد الانتظار</span>
+                                {% elif status == 'draft' %}
+                                    <span class="status-pill status-draft">مسودة</span>
+                                {% else %}
+                                    <span class="status-pill status-default">{{ item.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="action-stack">
+                                    <a href="/customs-management/view/{{ item.id }}" class="btn btn-sm btn-outline-secondary">عرض</a>
+                                    <a href="/customs-management/edit/{{ item.id }}" class="btn btn-sm btn-outline-primary">تعديل</a>
+                                    {% if item.status != 'completed' %}
+                                    <form method="post" action="/customs-management/{{ item.id }}/approve">
+                                        <input type="date" name="approval_date" class="mini-date" value="{{ item.approval_date or '' }}" title="تاريخ الاعتماد">
+                                        <button type="submit" class="btn btn-sm btn-success">اعتماد</button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-success small">{{ item.approval_date or '—' }}</span>
+                                    {% endif %}
+                                    <a href="/customs-management/view/{{ item.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة</a>
+                                    <form method="post" action="/customs-management/delete/{{ item.id }}" class="d-inline" onsubmit="return confirm('هل تريد حذف هذا الوارد؟ سيتم عكس توزيعه من الرصيد إذا كان مكتملًا.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">حذف</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">
+                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                لا توجد إجراءات جمركية حالياً.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

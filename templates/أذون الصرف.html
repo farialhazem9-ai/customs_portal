@@ -1,0 +1,29 @@
+<form method="POST">
+
+    <select name="store_id" class="form-control">
+        {% for store in stores %}
+        <option value="{{ store.id }}">
+            {{ store.store_name }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <select name="item_id" class="form-control mt-2">
+        {% for item in items %}
+        <option value="{{ item.id }}">
+            {{ item.item_name_ar }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <input type="number"
+           step="0.01"
+           name="qty"
+           class="form-control mt-2"
+           placeholder="الكمية">
+
+    <button class="btn btn-success mt-3">
+        صرف
+    </button>
+
+</form>

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>إدارة المخازن</h3>
+
+        <a href="/stores/add" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            إضافة مخزن
+        </a>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="mb-3">
+                <input type="search" id="storeSearch" class="form-control" placeholder="بحث في المخازن...">
+            </div>
+
+            {% if stores %}
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover text-center align-middle" id="storesTable">
+
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>كود المخزن</th>
+                            <th>اسم المخزن</th>
+                            <th>الموقع</th>
+                            <th>المسؤول</th>
+                            <th>الهاتف</th>
+                            <th>الحالة</th>
+                            <th width="180">الإجراءات</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for store in stores %}
+                        <tr>
+
+                            <td>{{ store.id }}</td>
+
+                            <td>{{ store.store_code }}</td>
+
+                            <td>{{ store.store_name }}</td>
+
+                            <td>{{ store.location or '-' }}</td>
+
+                            <td>{{ store.manager or '-' }}</td>
+
+                            <td>{{ store.phone or '-' }}</td>
+
+                            <td>
+                                {% if store.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-danger">غير نشط</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+
+                                <a href="/stores/edit/{{ store.id }}"
+                                   class="btn btn-warning btn-sm">
+                                    تعديل
+                                </a>
+
+                                <a href="/stores/delete/{{ store.id }}"
+                                   class="btn btn-danger btn-sm">
+                                    حذف
+                                </a>
+
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+            {% else %}
+
+            <div class="alert alert-info text-center">
+                لا توجد مخازن مسجلة حالياً.
+            </div>
+
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const searchInput = document.getElementById('storeSearch');
+            const table = document.getElementById('storesTable');
+            if (!searchInput || !table) return;
+
+            searchInput.addEventListener('keyup', function () {
+                const value = this.value.trim().toLowerCase();
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(value) ? '' : 'none';
+                });
+            });
+        });
+    </script>

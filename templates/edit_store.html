@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-warning">
+        <h3>تعديل المخزن</h3>
+    </div>
+
+    <div class="card-body">
+        <form method="POST">
+
+            <div class="row">
+
+                <div class="col-md-4 mb-3">
+                    <label>كود المخزن *</label>
+                    <input type="text"
+                           name="store_code"
+                           class="form-control"
+                           value="{{ store.store_code }}"
+                           required>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>اسم المخزن *</label>
+                    <input type="text"
+                           name="store_name"
+                           class="form-control"
+                           value="{{ store.store_name }}"
+                           required>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>الموقع</label>
+                    <input type="text"
+                           name="location"
+                           class="form-control"
+                           value="{{ store.location or '' }}">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>المسؤول</label>
+                    <input type="text"
+                           name="manager"
+                           class="form-control"
+                           value="{{ store.manager or '' }}">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>رقم الهاتف</label>
+                    <input type="text"
+                           name="phone"
+                           class="form-control"
+                           value="{{ store.phone or '' }}">
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label>الوصف</label>
+                    <textarea name="description"
+                              class="form-control">{{ store.description or '' }}</textarea>
+                </div>
+
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                حفظ التعديلات
+            </button>
+
+            <a href="/stores" class="btn btn-secondary">
+                رجوع
+            </a>
+
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow">
+    <div class="card-header bg-danger text-white">
+        <h3>حذف مخزن</h3>
+    </div>
+
+    <div class="card-body">
+
+        <div class="alert alert-warning">
+            هل أنت متأكد من حذف هذا المخزن؟
+        </div>
+
+        <table class="table table-bordered">
+            <tr>
+                <th>الكود</th>
+                <td>{{ store.store_code }}</td>
+            </tr>
+
+            <tr>
+                <th>اسم المخزن</th>
+                <td>{{ store.store_name }}</td>
+            </tr>
+
+            <tr>
+                <th>الموقع</th>
+                <td>{{ store.location or '-' }}</td>
+            </tr>
+
+            <tr>
+                <th>المسؤول</th>
+                <td>{{ store.manager or '-' }}</td>
+            </tr>
+        </table>
+
+        <form method="POST">
+            <button type="submit" class="btn btn-danger">
+                تأكيد الحذف
+            </button>
+
+            <a href="{{ url_for('stores') }}" class="btn btn-secondary">
+                إلغاء
+            </a>
+        </form>
+
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <h3>عناصر المخزن</h3>
+
+        <a href="/store_items/add" class="btn btn-light">
+            إضافة عنصر
+        </a>
+    </div>
+
+    <div class="card-body">
+
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>المخزن</th>
+                    <th>الصنف</th>
+                    <th>الكمية</th>
+                    <th>الإجراءات</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in store_items %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>{{ item.store_name }}</td>
+                    <td>{{ item.item_name_ar }}</td>
+                    <td>{{ item.quantity }}</td>
+
+                    <td>
+                        <a href="/store_items/edit/{{ item.id }}"
+                           class="btn btn-warning btn-sm">
+                            تعديل
+                        </a>
+
+                        <a href="/store_items/delete/{{ item.id }}"
+                           class="btn btn-danger btn-sm"
+                           onclick="return confirm('هل تريد حذف هذا السجل؟');">
+                            حذف
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+</div>
+
+{% endblock %}

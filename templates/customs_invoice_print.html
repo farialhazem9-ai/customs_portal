@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <title>طباعة الفاتورة - {{ invoice.invoice_no or ('INV-' ~ invoice.id) }}</title>
+    <style>
+        /* A4 landscape print-ready layout matching the provided paper template */
+        @page { size: A4 landscape; margin: 10mm 12mm; }
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #111; background: #fff; }
+        .page { width: 297mm; max-width: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
+        header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+        .company { text-align:left; font-size:13px; }
+        .company h1 { margin:0; font-size:16px; }
+        .meta { text-align:right; font-size:13px; }
+        .meta strong { display:block; font-size:14px; }
+        .from-to { display:flex; justify-content:space-between; gap:16px; margin:8px 0 12px; }
+        .box { border:1px solid #222; padding:10px; background:#fff; }
+        table { width:100%; border-collapse:collapse; margin-bottom:8px; table-layout:fixed; }
+        table thead th { background:#f3f4f6; border:1px solid #bbb; padding:10px; font-weight:700; font-size:13px; }
+        table tbody td { border:1px solid #bbb; padding:10px; vertical-align:top; font-size:13px; }
+        .right { text-align:right; }
+        .center { text-align:center; }
+        .small { font-size:12px; color:#555; }
+        .totals { display:flex; justify-content:flex-end; margin-top:6px; }
+        .totals .total-box { width:300px; border:1px solid #222; padding:12px; background:#fafafa; font-size:13px; }
+        .totals .total-box .amount { font-size:18px; font-weight:800; text-align:right; }
+        .signatures { display:flex; justify-content:space-between; margin-top:28px; }
+        .sig { width:30%; text-align:center; }
+        .stamp { width:110px; height:110px; border:1px dashed #888; display:inline-block; vertical-align:middle; }
+        .notes { margin-top:10px; font-size:12px; color:#333; }
+        /* ensure printable whitespace */
+        @media print {
+            body { margin:0 }
+            .page { box-shadow:none; margin:0; width:100%; padding:8mm; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="company">
+                <h1>شركة / جهة المرسِل</h1>
+                <div class="small">العنوان: ___________________________</div>
+                <div class="small">هاتف: ___________________________</div>
+            </div>
+            <div class="meta">
+                <div><strong>PRO FORMA / فاتورة مؤقتة</strong></div>
+                <div>رقم: <strong>{{ invoice.invoice_no or ('INV-' ~ invoice.id) }}</strong></div>
+                <div>التاريخ: <strong>{{ invoice.invoice_date or invoice.created_at }}</strong></div>
+            </div>
+        </header>
+
+        <div class="from-to">
+            <div style="flex:1" class="box">
+                <strong>FROM:</strong>
+                <div>{{ invoice.created_by or '-' }}</div>
+                <div class="small">(اسم المرسل وعنوانه)</div>
+            </div>
+            <div style="flex:1.5" class="box">
+                <strong>TO:</strong>
+                <div>{{ invoice.party or '-' }}</div>
+                <div class="small">(اسم المستلم / جهة الناقل)</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:6%">#</th>
+                    <th style="width:10%">الكمية</th>
+                    <th>الوصف</th>
+                    <th style="width:18%">سعر الوحدة</th>
+                    <th style="width:18%">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in items %}
+                <tr>
+                    <td class="center">{{ loop.index }}</td>
+                    <td class="center">{{ it.quantity or 0 }}</td>
+                    <td>{{ it.item_name_ar or it.description or '-' }}</td>
+                    <td class="right">{{ '%.2f' % (it.unit_price or 0) }}</td>
+                    <td class="right">{{ '%.2f' % ((it.quantity or 0) * (it.unit_price or 0)) }}</td>
+                </tr>
+                {% endfor %}
+                {% for i in range( (10 - (items|length if items else 0)) if (items|length if items else 0) < 10 else 0 ) %}
+                <tr><td class="center">&nbsp;</td><td class="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <div class="total-box">
+                <div class="small">المبلغ الإجمالي (بأرقام):</div>
+                <div style="font-size:18px; font-weight:700; text-align:right">{{ '%.2f' % (invoice.total_amount or 0) }}</div>
+                <div class="small">المبلغ بالحروف: ____________________________</div>
+            </div>
+        </div>
+
+        <div class="signatures">
+            <div class="sig">
+                <div class="stamp"></div>
+                <div>المخزن / المستلم</div>
+            </div>
+            <div class="sig">
+                <div class="stamp"></div>
+                <div>التوقيع</div>
+            </div>
+            <div class="sig">
+                <div class="stamp"></div>
+                <div>الختم</div>
+            </div>
+        </div>
+
+        <div style="margin-top:18px; font-size:11px; color:#555">ملاحظات: {{ invoice.notes or '-' }}</div>
+    </div>
+</body>
+</html>
