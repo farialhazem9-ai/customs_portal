@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}قسيمة الراتب{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 class="mb-1">قسيمة الراتب</h3>
+          <small class="text-muted">{{ employee.first_name }} {{ employee.last_name }} / {{ employee.employee_number }}</small>
+        </div>
+        <div class="text-end">
+          <a href="/hr/payroll" class="btn btn-outline-secondary btn-sm">عودة للرواتب</a>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="card border-0 bg-light h-100">
+            <div class="card-body">
+              <h5>بيانات الموظف</h5>
+              <dl class="row mb-0">
+                <dt class="col-sm-5">الاسم</dt><dd class="col-sm-7">{{ employee.first_name }} {{ employee.last_name }}</dd>
+                <dt class="col-sm-5">الكود</dt><dd class="col-sm-7">{{ employee.employee_number }}</dd>
+                <dt class="col-sm-5">المسمى</dt><dd class="col-sm-7">{{ employee.job_title or 'غير محدد' }}</dd>
+                <dt class="col-sm-5">الإدارة</dt><dd class="col-sm-7">{{ employee.department.name if employee.department else 'غير محدد' }}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card border-0 bg-light h-100">
+            <div class="card-body">
+              <h5>ملخص الراتب</h5>
+              <dl class="row mb-0">
+                <dt class="col-sm-6">الراتب الأساسي</dt><dd class="col-sm-6 text-end">{{ summary.gross_salary }}</dd>
+                <dt class="col-sm-6">مساهمة التأمين</dt><dd class="col-sm-6 text-end">{{ summary.employee_pension }}</dd>
+                <dt class="col-sm-6">تأمين صحي</dt><dd class="col-sm-6 text-end">{{ summary.employee_health }}</dd>
+                <dt class="col-sm-6">ضريبة الدخل</dt><dd class="col-sm-6 text-end">{{ summary.income_tax }}</dd>
+                <dt class="col-sm-6">إجمالي الخصومات</dt><dd class="col-sm-6 text-end fw-bold">{{ summary.total_deductions }}</dd>
+                <dt class="col-sm-6">صافي الراتب</dt><dd class="col-sm-6 text-end fw-bold text-success fs-5">{{ summary.net_salary }}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 d-flex justify-content-end">
+        <button class="btn btn-primary" onclick="window.print()">طباعة القسيمة</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

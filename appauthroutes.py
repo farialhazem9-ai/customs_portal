@@ -46,6 +46,6 @@ def login():
             session["user"] = user["username"]
             return redirect("/dashboard")
 
-        return render_template("auth/login.html", error="بيانات غير صحيحة")
+        return render_template("login.html", error="بيانات غير صحيحة")
 
-    return render_template("auth/login.html")
+    return render_template("login.html")

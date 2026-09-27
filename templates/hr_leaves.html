@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}الإجازات{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">إدارة الإجازات</h3>
+      <small class="text-muted">العطلات السنوية، المرضية، والعارضة</small>
+    </div>
+    <a href="/hr/dashboard" class="btn btn-outline-secondary btn-sm">عودة للوحة</a>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>الموظف</th>
+              <th>نوع الإجازة</th>
+              <th>الفترة</th>
+              <th>الأيام</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for emp in employees %}
+            <tr>
+              <td>{{ emp.first_name }} {{ emp.last_name }}</td>
+              <td>سنوية</td>
+              <td>01/09/2026 - 07/09/2026</td>
+              <td>7</td>
+              <td><span class="badge bg-warning text-dark">قيد الموافقة</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,12 +1,14 @@
 import os
+import csv
+import io
 import secrets
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, session, flash, Blueprint, jsonify
+from flask import Flask, render_template, request, redirect, session, flash, Blueprint, jsonify, make_response
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError, generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import urllib.request
 import threading
@@ -39,7 +41,7 @@ except ImportError as e:
     else:
         raise
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.environ.get('APP_SECRET_KEY') or secrets.token_hex(32)
 
 # Flask-WTF / CSRF configuration (professional defaults)
@@ -80,6 +82,32 @@ def get_db_connection():
     except Exception as e:
         print(f"DB Connection Error: {e}")
         raise
+
+
+def ensure_customs_invoice_extra_columns():
+    """Ensure export invoice metadata columns exist for legacy/customs database installs."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("SHOW COLUMNS FROM customs_invoices")
+            existing = {row[0].lower() for row in cur.fetchall()}
+            missing = []
+            if 'storage_permit_no' not in existing:
+                missing.append("ADD COLUMN storage_permit_no VARCHAR(50) NULL")
+            if 'export_no' not in existing:
+                missing.append("ADD COLUMN export_no VARCHAR(50) NULL")
+            if missing:
+                cur.execute(f"ALTER TABLE customs_invoices {', '.join(missing)}")
+                conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as exc:
+        print(f"Customs invoice column migration warning: {exc}")
+
+
+ensure_customs_invoice_extra_columns()
 
 
 def bootstrap_database_schema(sql_file=None):
@@ -185,6 +213,93 @@ def get_client_ip():
                 return candidate
 
     return request.remote_addr or 'unknown'
+
+
+def record_audit_log(action, module, description, status_code=None, conn=None):
+    if not session.get('user') or request.path.startswith('/static'):
+        return
+
+    close_conn = conn is None
+    connection = conn or get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM users WHERE username=%s LIMIT 1", (session['user'],))
+        user_row = cursor.fetchone() or {}
+        cursor.execute(
+            """
+            INSERT INTO audit_logs
+                (user_id, username, action, module, description, ip_address,
+                 request_method, request_path, status_code)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                user_row.get('id'), session['user'], action, module, description,
+                get_client_ip(), request.method, request.path, status_code
+            )
+        )
+        connection.commit()
+    except Exception as exc:
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        print(f"Audit log warning: {exc}")
+    finally:
+        cursor.close()
+        if close_conn:
+            connection.close()
+
+
+def audit_module_for_path(path):
+    if path in {'/', '/logout', '/dev-login'}:
+        return 'auth'
+    module_map = (
+        ('/customs-management', 'customs'),
+        ('/external-purchases', 'external_purchases'),
+        ('/local-purchases', 'local_purchases'),
+        ('/items', 'inventory'),
+        ('/categories', 'inventory'),
+        ('/stores', 'warehouses'),
+        ('/suppliers', 'suppliers'),
+        ('/requisition', 'purchasing'),
+        ('/requisitions', 'purchasing'),
+        ('/purchase-orders', 'purchasing'),
+        ('/create_order', 'purchasing'),
+        ('/roles', 'users'),
+        ('/hr/', 'hr'),
+        ('/exchange-rates', 'exchange'),
+        ('/companies', 'companies'),
+        ('/reports', 'reports'),
+        ('/audit-logs', 'audit'),
+    )
+    for prefix, module in module_map:
+        if path.startswith(prefix):
+            return module
+    return 'system'
+
+
+def audit_action_for_request():
+    if request.path == '/' and request.method == 'POST':
+        return 'login'
+    if request.path in {'/logout', '/dev-login'}:
+        return 'logout' if request.path == '/logout' else 'login'
+    if request.method == 'DELETE' or any(token in request.path.lower() for token in ('/delete', '/remove')):
+        return 'delete'
+    if request.method in {'PUT', 'PATCH'} or any(token in request.path.lower() for token in ('/edit', '/update')):
+        return 'update'
+    if request.method == 'POST':
+        return 'create'
+    return 'view'
+
+
+def audit_description_for_request():
+    description = f"{request.method} {request.path}"
+    if request.form:
+        sensitive_fields = {'password', 'password_confirmation', 'csrf_token', 'avatar'}
+        fields = [key for key in request.form.keys() if key not in sensitive_fields]
+        if fields:
+            description += f"; fields: {', '.join(fields[:20])}"
+    return description
 
 
 def password_matches(stored_hash, password):
@@ -601,6 +716,7 @@ def ensure_department_permissions():
             ('department.exchange.view', 'رؤية أسعار العملات', 'الإدارات'),
             ('department.companies.view', 'رؤية دليل الشركات', 'الإدارات'),
             ('department.reports.view', 'رؤية التقارير', 'الإدارات'),
+            ('audit.view', 'رؤية سجل النشاطات', 'الإدارات'),
         )
         conn = get_db_connection()
         cur = conn.cursor()
@@ -637,11 +753,63 @@ ensure_issue_voucher_reference_column()
 ensure_department_permissions()
 
 
+def ensure_audit_logs_table():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id BIGINT UNSIGNED NULL,
+                username VARCHAR(150) NULL,
+                action VARCHAR(40) NOT NULL,
+                module VARCHAR(100) NOT NULL,
+                description TEXT NULL,
+                ip_address VARCHAR(45) NULL,
+                request_method VARCHAR(10) NULL,
+                request_path VARCHAR(255) NULL,
+                status_code SMALLINT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                INDEX idx_audit_created_at (created_at),
+                INDEX idx_audit_username (username),
+                INDEX idx_audit_action (action),
+                INDEX idx_audit_module (module),
+                INDEX idx_audit_user_id (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
+        cur.execute("SHOW COLUMNS FROM audit_logs")
+        existing_columns = {row[0] for row in cur.fetchall()}
+        audit_columns = {
+            'action': 'VARCHAR(40) NULL',
+            'username': 'VARCHAR(150) NULL',
+            'module': 'VARCHAR(100) NULL',
+            'description': 'TEXT NULL',
+            'request_method': 'VARCHAR(10) NULL',
+            'request_path': 'VARCHAR(255) NULL',
+            'status_code': 'SMALLINT NULL',
+        }
+        for column_name, definition in audit_columns.items():
+            if column_name not in existing_columns:
+                cur.execute(f"ALTER TABLE audit_logs ADD COLUMN {column_name} {definition}")
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        print(f"Audit table warning: {exc}")
+
+
+ensure_audit_logs_table()
+
+
 @app.context_processor
 def inject_user_data():
     user = session.get("user")
     low_stock_count = 0
     low_stock_items = []
+    inventory_branches = []
     profile_image_filename = None
     user_profile = {
         "full_name": user or "",
@@ -679,6 +847,17 @@ def inject_user_data():
                 LIMIT 1
             """, (user,))
             user_profile = cur.fetchone() or user_profile
+            cur.execute("""
+                SELECT s.id, s.store_code, s.store_name,
+                       COUNT(si.item_id) AS item_count,
+                       COALESCE(SUM(si.quantity), 0) AS total_quantity
+                FROM stores s
+                LEFT JOIN store_items si ON si.store_id = s.id
+                WHERE s.is_active = 1
+                GROUP BY s.id, s.store_code, s.store_name
+                ORDER BY s.store_name
+            """)
+            inventory_branches = cur.fetchall() or []
             cur.close()
         except Exception as e:
             print(f"Low stock query error: {e}")
@@ -696,7 +875,8 @@ def inject_user_data():
         "low_stock_count": low_stock_count,
         "low_stock_items": low_stock_items,
         "user_profile": user_profile,
-        "profile_image_filename": profile_image_filename
+        "profile_image_filename": profile_image_filename,
+        "inventory_branches": inventory_branches
     }
 
 
@@ -797,6 +977,25 @@ def enforce_permission_checks():
 
 
 @app.after_request
+def record_request_audit(response):
+    excluded_paths = {'/set-language', '/search', '/audit-logs/export', '/audit-logs/event'}
+    should_log = (
+        session.get('user') and
+        request.path not in excluded_paths and
+        not request.path.startswith('/static') and
+        (request.method not in {'GET', 'HEAD', 'OPTIONS'} or request.path == '/audit-logs')
+    )
+    if should_log and request.path != '/audit-logs':
+        record_audit_log(
+            audit_action_for_request(),
+            audit_module_for_path(request.path),
+            audit_description_for_request(),
+            response.status_code
+        )
+    return response
+
+
+@app.after_request
 def translate_html_response(response):
     if session.get('language', 'ar') != 'en':
         return response
@@ -804,10 +1003,94 @@ def translate_html_response(response):
         return response
 
     page = response.get_data(as_text=True)
+    page = page.replace('<html lang="ar" dir="rtl">', '<html lang="en" dir="ltr">')
     for arabic, english in sorted(ARABIC_TO_ENGLISH.items(), key=lambda item: len(item[0]), reverse=True):
         page = page.replace(arabic, english)
     response.set_data(page)
     return response
+
+
+@app.route('/audit-logs')
+def audit_logs():
+    if not has_permission('audit.view'):
+        flash('ليس لديك صلاحية للوصول إلى سجل النشاطات.', 'danger')
+        return redirect('/dashboard')
+
+    filters = []
+    params = []
+    filter_values = {
+        'username': request.args.get('username', '').strip(),
+        'action': request.args.get('action', '').strip(),
+        'module': request.args.get('module', '').strip(),
+        'date_from': request.args.get('date_from', '').strip(),
+        'date_to': request.args.get('date_to', '').strip(),
+    }
+    if filter_values['username']:
+        filters.append('username LIKE %s')
+        params.append(f"%{filter_values['username']}%")
+    if filter_values['action']:
+        filters.append('action = %s')
+        params.append(filter_values['action'])
+    if filter_values['module']:
+        filters.append('module = %s')
+        params.append(filter_values['module'])
+    if filter_values['date_from']:
+        filters.append('created_at >= %s')
+        params.append(f"{filter_values['date_from']} 00:00:00")
+    if filter_values['date_to']:
+        filters.append('created_at <= %s')
+        params.append(f"{filter_values['date_to']} 23:59:59")
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ''
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute(
+            f"""
+            SELECT id, username, action, module, description, ip_address,
+                   request_method, request_path, status_code, created_at
+            FROM audit_logs
+            {where_clause}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1000
+            """,
+            params
+        )
+        logs = cur.fetchall() or []
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        'audit_logs.html',
+        logs=logs,
+        filters=filter_values,
+        action_options=('create', 'update', 'delete', 'login', 'logout', 'export', 'view'),
+        module_options=('system', 'inventory', 'warehouses', 'suppliers', 'purchasing', 'customs', 'external_purchases', 'local_purchases', 'users', 'hr', 'exchange', 'companies', 'reports', 'audit')
+    )
+
+
+@app.route('/audit-logs/event', methods=['POST'])
+def audit_log_event():
+    if not session.get('user'):
+        return jsonify({'ok': False}), 401
+
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get('action') or '').strip().lower()
+    if action not in {'export'}:
+        return jsonify({'ok': False}), 400
+
+    allowed_modules = {
+        'system', 'inventory', 'warehouses', 'suppliers', 'purchasing',
+        'customs', 'external_purchases', 'local_purchases', 'users', 'hr',
+        'exchange', 'companies', 'reports', 'audit'
+    }
+    module = str(payload.get('module') or 'system').strip()
+    if module not in allowed_modules:
+        module = 'system'
+    description = str(payload.get('description') or 'Report export')[:1000]
+    record_audit_log(action, module, description, 200)
+    return jsonify({'ok': True})
 
 
 # ======================
@@ -2376,7 +2659,237 @@ def current_stock_report():
 
 @app.route("/reports")
 def reports():
-    return redirect("/reports/current-stock")
+    return redirect("/reports/enterprise-dashboard")
+
+
+@app.route("/reports/enterprise-dashboard")
+def enterprise_dashboard():
+    if not has_permission('reports.view'):
+        flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
+        return redirect('/dashboard')
+
+    today = datetime.utcnow().date()
+    default_start = today - timedelta(days=30)
+
+    try:
+        date_from = datetime.strptime(request.args.get('date_from', ''), '%Y-%m-%d').date() if request.args.get('date_from') else default_start
+    except ValueError:
+        date_from = default_start
+
+    try:
+        date_to = datetime.strptime(request.args.get('date_to', ''), '%Y-%m-%d').date() if request.args.get('date_to') else today
+    except ValueError:
+        date_to = today
+
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    department = (request.args.get('department') or '').strip()
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT item_name_ar AS item_name, store_name, quantity,
+                   ROUND(COALESCE(unit_price, 0), 2) AS unit_price,
+                   ROUND(COALESCE(quantity, 0) * COALESCE(unit_price, 0), 2) AS total_value
+            FROM vw_current_stock
+            WHERE 1=1
+        """
+        params = []
+
+        if department:
+            query += " AND LOWER(store_name) LIKE LOWER(%s) "
+            params.append(f"%{department}%")
+
+        query += " ORDER BY total_value DESC LIMIT 50"
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+
+        total_quantity = sum(float(r.get('quantity') or 0) for r in rows)
+        total_value = sum(float(r.get('total_value') or 0) for r in rows)
+        total_items = len(rows)
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        'enterprise_reports.html',
+        report_rows=rows,
+        date_from=date_from,
+        date_to=date_to,
+        department=department,
+        total_items=total_items,
+        total_quantity=total_quantity,
+        total_value=total_value,
+        current_language='ar',
+        user=session.get('user')
+    )
+
+
+@app.route("/reports/enterprise-dashboard/export")
+def enterprise_dashboard_export():
+    if not has_permission('reports.view'):
+        flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
+        return redirect('/dashboard')
+
+    department = (request.args.get('department') or '').strip()
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT item_name_ar AS item_name, store_name, quantity,
+                   ROUND(COALESCE(unit_price, 0), 2) AS unit_price,
+                   ROUND(COALESCE(quantity, 0) * COALESCE(unit_price, 0), 2) AS total_value
+            FROM vw_current_stock
+            WHERE 1=1
+        """
+        params = []
+        if department:
+            query += " AND LOWER(store_name) LIKE LOWER(%s) "
+            params.append(f"%{department}%")
+
+        query += " ORDER BY total_value DESC LIMIT 500"
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['الصنف', 'المخزن', 'الكمية', 'سعر الوحدة', 'إجمالي القيمة'])
+
+    for row in rows:
+        writer.writerow([
+            row.get('item_name') or '',
+            row.get('store_name') or '',
+            row.get('quantity') or 0,
+            row.get('unit_price') or 0,
+            row.get('total_value') or 0,
+        ])
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = 'attachment; filename="enterprise_report.csv"'
+    return response
+
+
+@app.route('/reports/abc-analysis')
+def abc_analysis():
+    if not has_permission('reports.view'):
+        flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
+        return redirect('/dashboard')
+
+    today = datetime.utcnow().date()
+    default_start = today - timedelta(days=365)
+    try:
+        date_from = datetime.strptime(request.args.get('date_from', ''), '%Y-%m-%d').date() if request.args.get('date_from') else default_start
+    except ValueError:
+        date_from = default_start
+    try:
+        date_to = datetime.strptime(request.args.get('date_to', ''), '%Y-%m-%d').date() if request.args.get('date_to') else today
+    except ValueError:
+        date_to = today
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    try:
+        dead_months = max(1, min(int(request.args.get('dead_months', '6')), 60))
+    except ValueError:
+        dead_months = 6
+    department = request.args.get('department', '').strip()
+    dead_cutoff = date_to - timedelta(days=dead_months * 30)
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        department_clause = 'AND i.department = %s' if department else ''
+        params = [date_from, date_to]
+        if department:
+            params.append(department)
+        cur.execute(
+            f"""
+            SELECT
+                i.id, i.item_code, i.item_name_ar, i.item_name_en,
+                i.department, i.current_stock, COALESCE(i.price, 0) AS unit_price,
+                COALESCE(m.withdrawal_qty, 0) AS withdrawal_qty,
+                COALESCE(m.withdrawal_count, 0) AS withdrawal_count,
+                COALESCE(m.movement_value, 0) AS movement_value,
+                last_out.last_out_at
+            FROM items i
+            LEFT JOIN (
+                SELECT item_id,
+                       SUM(qty) AS withdrawal_qty,
+                       COUNT(*) AS withdrawal_count,
+                       SUM(qty * COALESCE((SELECT price FROM items i2 WHERE i2.id = st.item_id), 0)) AS movement_value
+                FROM stock_transactions st
+                WHERE transaction_type = 'OUT'
+                  AND created_at >= %s
+                  AND created_at < DATE_ADD(%s, INTERVAL 1 DAY)
+                GROUP BY item_id
+            ) m ON m.item_id = i.id
+            LEFT JOIN (
+                SELECT item_id, MAX(created_at) AS last_out_at
+                FROM stock_transactions
+                WHERE transaction_type = 'OUT'
+                GROUP BY item_id
+            ) last_out ON last_out.item_id = i.id
+            WHERE 1=1 {department_clause}
+            ORDER BY movement_value DESC, i.item_name_ar ASC
+            """,
+            params
+        )
+        items = cur.fetchall() or []
+    finally:
+        cur.close()
+        conn.close()
+
+    total_value = sum(float(item.get('movement_value') or 0) for item in items)
+    cumulative_value = 0.0
+    for item in items:
+        value = float(item.get('movement_value') or 0)
+        cumulative_value += value
+        cumulative_percent = (cumulative_value / total_value * 100) if total_value else 100
+        if value <= 0:
+            category = 'C'
+        elif cumulative_percent <= 80:
+            category = 'A'
+        elif cumulative_percent <= 95:
+            category = 'B'
+        else:
+            category = 'C'
+        item['abc_category'] = category
+        item['value_percent'] = (value / total_value * 100) if total_value else 0
+
+    summary = {
+        category: {
+            'count': sum(1 for item in items if item['abc_category'] == category),
+            'value': sum(float(item.get('movement_value') or 0) for item in items if item['abc_category'] == category),
+        }
+        for category in ('A', 'B', 'C')
+    }
+    for category in summary:
+        summary[category]['percent'] = (summary[category]['value'] / total_value * 100) if total_value else 0
+
+    dead_stock = [
+        item for item in items
+        if float(item.get('current_stock') or 0) > 0 and
+        (not item.get('last_out_at') or item['last_out_at'].date() < dead_cutoff)
+    ]
+
+    return render_template(
+        'abc_analysis.html',
+        items=items,
+        summary=summary,
+        dead_stock=dead_stock,
+        total_value=total_value,
+        date_from=date_from.isoformat(),
+        date_to=date_to.isoformat(),
+        dead_months=dead_months,
+        department=department
+    )
 
 
 @app.route("/exchange-rates")
@@ -2739,6 +3252,8 @@ def requisitions():
 
 @app.route("/logout")
 def logout():
+    if session.get('user'):
+        record_audit_log('logout', 'auth', 'User signed out')
     session.clear()
     return redirect("/")
 
@@ -3825,8 +4340,8 @@ def add_issue_voucher():
 
             voucher_no = request.form["voucher_no"]
             issue_date = request.form["issue_date"]
-            department = request.form["department"]
-            receiver_name = request.form["receiver_name"]
+            department = normalize_department_key(request.form.get("department") or 'local_purchases')
+            receiver_name = request.form.get("receiver_name", "")
             notes = request.form.get("notes", "")
 
             cur.execute("""
@@ -3837,17 +4352,20 @@ def add_issue_voucher():
                     department,
                     receiver_name,
                     notes,
-                    created_by
+                    created_by,
+                    status,
+                    approved_at
                 )
                 VALUES
-                (%s,%s,%s,%s,%s,%s)
+                (%s,%s,%s,%s,%s,%s,%s,NOW())
             """, (
                 voucher_no,
                 issue_date,
                 department,
                 receiver_name,
                 notes,
-                session["user"]
+                session["user"],
+                'approved'
             ))
 
             voucher_id = cur.lastrowid
@@ -3856,17 +4374,32 @@ def add_issue_voucher():
             qtys = request.form.getlist("qty[]")
             prices = request.form.getlist("unit_price[]")
 
-            for item_id, qty, price in zip(
-                item_ids,
-                qtys,
-                prices
-            ):
-
+            for item_id, qty_value, price_value in zip(item_ids, qtys, prices):
                 if not item_id:
                     continue
 
-                qty = float(qty or 0)
-                price = float(price or 0)
+                qty = float(qty_value or 0)
+                price = float(price_value or 0)
+
+                if qty <= 0:
+                    continue
+
+                cur.execute("""
+                    SELECT current_stock, current_balance, price
+                    FROM items
+                    WHERE id=%s AND department=%s
+                    FOR UPDATE
+                """, (item_id, department))
+                item = cur.fetchone()
+
+                if not item:
+                    raise ValueError(f"الصنف {item_id} غير موجود في الإدارة {department}")
+
+                if qty > float(item["current_stock"] or 0):
+                    raise ValueError(f"الكمية المطلوبة أكبر من الرصيد المتاح للصنف {item_id}")
+
+                if item.get("current_balance") is not None and qty > float(item["current_balance"] or 0):
+                    raise ValueError(f"الكمية المطلوبة أكبر من الرصيد الإجمالي للصنف {item_id}")
 
                 cur.execute("""
                     INSERT INTO issue_voucher_items
@@ -3883,33 +4416,36 @@ def add_issue_voucher():
                     voucher_id,
                     item_id,
                     qty,
-                    price,
-                    qty * price
+                    price or float(item.get("price") or 0),
+                    qty * (price or float(item.get("price") or 0))
                 ))
 
-            # immediately deduct from stock_movements (create OUT movement)
-            try:
+                cur.execute("""
+                    UPDATE items
+                    SET current_stock = current_stock - %s,
+                        current_balance = COALESCE(current_balance, 0) - %s
+                    WHERE id=%s AND department=%s
+                """, (qty, qty, item_id, department))
+
+                warehouse_id = request.form.get(f"warehouse_id_{item_id}") or request.form.get("warehouse_id") or 1
                 cur.execute("""
                     INSERT INTO stock_movements
                     (item_id, warehouse_id, movement_type, qty, reference_type, reference_id)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     item_id,
-                    1,                # default warehouse id, adjust as needed
+                    warehouse_id,
                     'OUT',
                     qty,
                     'ISSUE_VOUCHER',
                     voucher_id
                 ))
-            except Exception as e:
-                # log and continue; rollback handled at outer exception
-                print('Stock movement insert failed:', e)
 
             conn.commit()
 
             flash(
-            "تم إنشاء إذن الصرف وتنفيذ الخصم من المخزون",
-            "success"
+                "تم إنشاء إذن الصرف وتنفيذ الخصم من المخزون",
+                "success"
             )
 
             return redirect("/issue-vouchers")
@@ -4353,38 +4889,52 @@ def customs_inventory_branch():
     if "user" not in session:
         return redirect("/")
 
+    selected_store_id = request.args.get('store_id', type=int)
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("""
+        store_join = 'JOIN store_items si ON si.item_id = i.id AND si.store_id = %s' if selected_store_id else 'LEFT JOIN store_items si ON 1 = 0'
+        store_where = 'WHERE si.store_id IS NOT NULL' if selected_store_id else ''
+        query_params = [selected_store_id] if selected_store_id else []
+        cur.execute(f"""
             SELECT
                 i.id,
                 i.item_code,
                 i.item_name_ar,
                 i.item_name_en,
                 i.category_id,
-                i.current_stock,
+                COALESCE(si.quantity, i.current_stock, 0) AS current_stock,
                 i.qty,
                 i.min_qty,
                 i.price,
+                s.store_name AS selected_store_name,
                 u.unit_name,
                 c.category_name_ar,
                 c.category_name_en
             FROM items i
+            {store_join}
+            LEFT JOIN stores s ON s.id = si.store_id
             LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN categories c ON c.id = i.category_id
+            {store_where}
             ORDER BY i.item_name_ar ASC
-        """)
+        """, query_params)
         items = cur.fetchall() or []
     finally:
         cur.close()
         conn.close()
 
+    selected_store_name = items[0].get('selected_store_name') if selected_store_id and items else None
+    if selected_store_id and not selected_store_name:
+        selected_store_name = 'Selected warehouse'
+
     return render_template(
         "customs_inventory_branch.html",
-        title="قائمة الجرد",
-        subtitle="إدارة قائمة الجرد داخل إدارة الجمارك",
-        items=items
+        title="قائمة الجرد" if not selected_store_name else f"جرد {selected_store_name}",
+        subtitle="إدارة قائمة الجرد داخل إدارة الجمارك" if not selected_store_name else f"الأرصدة الخاصة بمخزن {selected_store_name}",
+        items=items,
+        selected_store_id=selected_store_id,
+        selected_store_name=selected_store_name
     )
 
 
@@ -5096,6 +5646,8 @@ def create_export_invoice():
         invoice_no = request.form.get('invoice_no', '').strip()
         invoice_date = request.form.get('invoice_date') or None
         party = request.form.get('recipient', '').strip()
+        storage_permit_no = request.form.get('storage_permit_no', '').strip() or None
+        export_no = request.form.get('export_no', '').strip() or None
         notes = request.form.get('notes', '').strip() if request.form.get('notes') else None
         declaration_id = request.form.get('declaration_id') or None
 
@@ -5103,13 +5655,15 @@ def create_export_invoice():
             created_by = get_current_user_id(conn)
             # insert header (include optional declaration_id)
             cur.execute("""
-                INSERT INTO customs_invoices (invoice_no, invoice_type, invoice_date, party, notes, created_by, declaration_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO customs_invoices (invoice_no, invoice_type, invoice_date, party, storage_permit_no, export_no, notes, created_by, declaration_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 invoice_no,
                 'export_invoice',
                 invoice_date,
                 party,
+                storage_permit_no,
+                export_no,
                 notes,
                 created_by,
                 declaration_id or None
@@ -5198,9 +5752,11 @@ def edit_invoice(invoice_id):
         invoice_no = request.form.get('invoice_no', '').strip()
         invoice_date = request.form.get('invoice_date') or None
         party = request.form.get('recipient') or request.form.get('customer') or request.form.get('from_store') or request.form.get('reason') or ''
+        storage_permit_no = request.form.get('storage_permit_no', '').strip() or None
+        export_no = request.form.get('export_no', '').strip() or None
         notes = request.form.get('notes', '').strip() if request.form.get('notes') else None
         try:
-            cur.execute("UPDATE customs_invoices SET invoice_no=%s, invoice_date=%s, party=%s, notes=%s, updated_at=NOW() WHERE id=%s", (invoice_no, invoice_date, party, notes, invoice_id))
+            cur.execute("UPDATE customs_invoices SET invoice_no=%s, invoice_date=%s, party=%s, storage_permit_no=%s, export_no=%s, notes=%s, updated_at=NOW() WHERE id=%s", (invoice_no, invoice_date, party, storage_permit_no, export_no, notes, invoice_id))
 
             # delete existing items and re-insert
             cur.execute("DELETE FROM customs_invoice_items WHERE invoice_id=%s", (invoice_id,))

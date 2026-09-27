@@ -1,37 +1,116 @@
 {% extends 'base.html' %}
-{% block title %}قائمة الموظفين{% endblock %}
+{% block title %}دليل الموظفين{% endblock %}
 {% block content %}
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>الموظفون</h3>
-    <a href="/hr/employees/add" class="btn btn-sm btn-primary">إضافة موظف</a>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">دليل الموظفين</h3>
+      <small class="text-muted">الملف الوظيفي، الحالة، الإدارة، والاتصالات</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/hr/dashboard" class="btn btn-outline-secondary btn-sm">لوحة الإدارة</a>
+      <a href="/hr/employees/add" class="btn btn-primary btn-sm">إضافة موظف</a>
+    </div>
   </div>
-  <div class="table-responsive">
-    <table class="table table-striped">
-      <thead><tr><th>#</th><th>كود</th><th>الاسم</th><th>الرقم القومي</th><th>تاريخ التعيين</th><th>الراتب</th><th>إجراءات</th></tr></thead>
-      <tbody>
-        {% for e in employees %}
-        <tr>
-          <td>{{ e.id }}</td>
-          <td>{{ e.employee_number }}</td>
-          <td>{{ e.first_name }} {{ e.last_name }}</td>
-          <td>{{ e.national_id }}</td>
-          <td>{{ e.hire_date }}</td>
-          <td>{{ e.salary }}</td>
-          <td>
-            <a href="/hr/employees/view/{{ e.id }}" class="btn btn-sm btn-outline-primary">عرض</a>
-            <a href="/hr/employees/edit/{{ e.id }}" class="btn btn-sm btn-outline-secondary">تعديل</a>
-            <a href="/hr/employees/{{ e.id }}/documents/view" class="btn btn-sm btn-outline-info">مستندات</a>
-            <form method="post" action="/hr/employees/delete/{{ e.id }}" style="display:inline" onsubmit="return confirm('هل تريد الحذف؟');">
-              <button class="btn btn-sm btn-danger">حذف</button>
-            </form>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7">لا يوجد موظفون</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  <form method="get" class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label fw-bold">بحث سريع</label>
+          <input type="text" name="q" class="form-control" value="{{ search or '' }}" placeholder="الاسم، الكود، الرقم القومي" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-bold">الإدارة</label>
+          <select name="department_id" class="form-select">
+            <option value="">الكل</option>
+            {% for department in departments %}
+            <option value="{{ department.id }}" {% if department_id == department.id %}selected{% endif %}>{{ department.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-bold">حالة الموظف</label>
+          <select name="status" class="form-select">
+            <option value="">الكل</option>
+            <option value="Active" {% if status == 'Active' %}selected{% endif %}>نشط</option>
+            <option value="On Leave" {% if status == 'On Leave' %}selected{% endif %}>في إجازة</option>
+            <option value="Inactive" {% if status == 'Inactive' %}selected{% endif %}>موقوف</option>
+            <option value="Terminated" {% if status == 'Terminated' %}selected{% endif %}>مستقيل</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button class="btn btn-primary w-100" type="submit">تطبيق</button>
+          <a href="/hr/employees" class="btn btn-outline-secondary w-100">إعادة</a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>الكود</th>
+              <th>اسم الموظف</th>
+              <th>الإدارة</th>
+              <th>المسمى الوظيفي</th>
+              <th>الحالة</th>
+              <th>الهاتف</th>
+              <th>البريد الإلكتروني</th>
+              <th>الراتب</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in employees %}
+            <tr>
+              <td>{{ e.id }}</td>
+              <td>{{ e.employee_number }}</td>
+              <td>
+                <div class="fw-bold">{{ e.first_name }} {{ e.last_name }}</div>
+                <small class="text-muted">{{ e.national_id or 'بدون رقم قومي' }}</small>
+              </td>
+              <td>{{ e.department.name if e.department else 'غير محدد' }}</td>
+              <td>{{ e.job_title or 'غير محدد' }}</td>
+              <td>
+                {% set emp_status = e.status or ('نشط' if e.active else 'موقوف') %}
+                {% if emp_status in ['Active', 'نشط'] %}
+                <span class="badge bg-success">نشط</span>
+                {% elif emp_status in ['On Leave', 'في إجازة'] %}
+                <span class="badge bg-warning text-dark">في إجازة</span>
+                {% elif emp_status in ['Inactive', 'موقوف'] %}
+                <span class="badge bg-secondary">موقوف</span>
+                {% else %}
+                <span class="badge bg-danger">مستقيل</span>
+                {% endif %}
+              </td>
+              <td>{{ e.phone or '-' }}</td>
+              <td>{{ e.email or '-' }}</td>
+              <td>{{ e.salary }}</td>
+              <td>
+                <div class="d-flex flex-wrap gap-1">
+                  <a href="/hr/employees/view/{{ e.id }}" class="btn btn-sm btn-outline-primary" title="عرض الملف الشخصي">👁️</a>
+                  <a href="/hr/employees/edit/{{ e.id }}" class="btn btn-sm btn-outline-secondary" title="تعديل البيانات">✏️</a>
+                  <a href="/hr/employees/{{ e.id }}/documents/view" class="btn btn-sm btn-outline-info" title="المستندات">📄</a>
+                  <form method="post" action="/hr/employees/delete/{{ e.id }}" onsubmit="return confirm('هل تريد تجميد أو حذف هذا الموظف؟');" class="d-inline">
+                    <button class="btn btn-sm btn-outline-danger" title="تجميد / حذف">🗑️</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="10" class="text-center py-4 text-muted">لا توجد موظفين يطابقون الفلتر الحالي.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

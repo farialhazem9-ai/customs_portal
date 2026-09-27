@@ -24,7 +24,12 @@
         <dl class="row mt-3">
           <dt class="col-sm-4">الاسم</dt><dd class="col-sm-8">{{ employee.first_name }} {{ employee.last_name }}</dd>
           <dt class="col-sm-4">الكود</dt><dd class="col-sm-8">{{ employee.employee_number }}</dd>
+          <dt class="col-sm-4">الإدارة</dt><dd class="col-sm-8">{{ employee.department.name if employee.department else 'غير محدد' }}</dd>
+          <dt class="col-sm-4">المسمى الوظيفي</dt><dd class="col-sm-8">{{ employee.job_title or 'غير محدد' }}</dd>
+          <dt class="col-sm-4">الحالة</dt><dd class="col-sm-8">{{ employee.status or ('نشط' if employee.active else 'موقوف') }}</dd>
           <dt class="col-sm-4">الرقم القومي</dt><dd class="col-sm-8">{{ employee.national_id }}</dd>
+          <dt class="col-sm-4">الهاتف</dt><dd class="col-sm-8">{{ employee.phone or '-' }}</dd>
+          <dt class="col-sm-4">البريد الإلكتروني</dt><dd class="col-sm-8">{{ employee.email or '-' }}</dd>
           <dt class="col-sm-4">تاريخ التعيين</dt><dd class="col-sm-8">{{ employee.hire_date }}</dd>
           <dt class="col-sm-4">الراتب</dt><dd class="col-sm-8">{{ employee.salary }}</dd>
         </dl>

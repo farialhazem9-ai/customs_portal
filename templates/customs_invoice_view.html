@@ -19,6 +19,8 @@
                 <div class="col-md-3"><strong>النوع:</strong> {% if invoice.invoice_type == 'export_invoice' %}فاتورة صادر{% elif invoice.invoice_type=='final_sale' %}فاتورة بيع نهائي{% elif invoice.invoice_type=='umbrella_transfer' %}تحويل مظلة{% elif invoice.invoice_type=='return_export' %}إعادة صادر{% else %}-{% endif %}</div>
                 <div class="col-md-3"><strong>التاريخ:</strong> {{ invoice.invoice_date or invoice.created_at }}</div>
                 <div class="col-md-3"><strong>الطرف:</strong> {{ invoice.party or '-' }}</div>
+                <div class="col-md-3 mt-2"><strong>رقم إذن التخزين:</strong> {{ invoice.storage_permit_no or '-' }}</div>
+                <div class="col-md-3 mt-2"><strong>رقم الصادر:</strong> {{ invoice.export_no or '-' }}</div>
             </div>
             <div class="mb-3">
                 <a href="/customs-management/invoice/{{ invoice.id }}/edit" class="btn btn-sm btn-primary">تعديل</a>

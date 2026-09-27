@@ -1,6 +1,5 @@
 import json
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date
 from hr_models import HRConfig, Employee, Payslip
 
 
@@ -24,43 +23,15 @@ class ConfigLoader:
 
 
 def money(v):
-    return Decimal(v).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return Decimal(str(v)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
-def compute_payslip(session, employee_id, config_loader):
-    emp = session.query(Employee).get(employee_id)
-    if not emp:
-        raise ValueError('Employee not found')
-
-    gross = Decimal(emp.salary)
-    # Pensions (social insurance)
-    pension_ceiling = Decimal(config_loader.get('egypt_social_insurance_ceiling', '0'))
-    emp_pension_rate = Decimal(config_loader.get('egypt_social_insurance_employee_rate', '0'))
-    employer_pension_rate = Decimal(config_loader.get('egypt_social_insurance_employer_rate', '0'))
-
-    # Health insurance
-    emp_health_rate = Decimal(config_loader.get('egypt_health_insurance_employee_rate', '0'))
-    employer_health_rate = Decimal(config_loader.get('egypt_health_insurance_employer_rate', '0'))
-
-    # Income tax brackets
-    tax_brackets = config_loader.get('egypt_income_tax_brackets', [])
-
-    # Apply ceiling
-    pensionable_salary = gross if pension_ceiling == 0 or gross <= pension_ceiling else pension_ceiling
-    emp_pension = money(pensionable_salary * emp_pension_rate)
-    employer_pension = money(pensionable_salary * employer_pension_rate)
-
-    emp_health = money(gross * emp_health_rate)
-    employer_health = money(gross * employer_health_rate)
-
-    # Income tax (progressive)
-    taxable_income = gross - emp_pension - emp_health
-
+def calculate_income_tax(taxable_income, tax_brackets):
     income_tax = Decimal('0')
     remaining = taxable_income
     last_limit = Decimal('0')
     for bracket in tax_brackets:
-        up_to = Decimal(bracket.get('up_to', 0))
+        up_to = Decimal(str(bracket.get('up_to', 0)))
         rate = Decimal(str(bracket.get('rate', 0)))
         if remaining <= 0:
             break
@@ -69,17 +40,55 @@ def compute_payslip(session, employee_id, config_loader):
             income_tax += taxable_chunk * rate
             remaining -= taxable_chunk
         last_limit = up_to
+    return money(income_tax)
 
-    income_tax = money(income_tax)
 
-    total_deductions = money(emp_pension + emp_health + income_tax)
-    net = money(gross - total_deductions)
+def build_employee_payroll_summary(session, employee_id):
+    emp = session.query(Employee).get(employee_id)
+    if not emp:
+        raise ValueError('Employee not found')
 
+    config_loader = ConfigLoader(session)
+    gross = money(emp.salary)
+    pension_ceiling = Decimal(str(config_loader.get('egypt_social_insurance_ceiling', '0')))
+    emp_pension_rate = Decimal(str(config_loader.get('egypt_social_insurance_employee_rate', '0')))
+    emp_health_rate = Decimal(str(config_loader.get('egypt_health_insurance_employee_rate', '0')))
+    tax_brackets = config_loader.get('egypt_income_tax_brackets', [])
+
+    pensionable_salary = gross if pension_ceiling == 0 or gross <= pension_ceiling else pension_ceiling
+    employee_pension = money(pensionable_salary * emp_pension_rate)
+    employee_health = money(gross * emp_health_rate)
+    taxable_income = gross - employee_pension - employee_health
+    income_tax = calculate_income_tax(taxable_income, tax_brackets)
+    total_deductions = money(employee_pension + employee_health + income_tax)
+    net_salary = money(gross - total_deductions)
+
+    return {
+        'employee_id': emp.id,
+        'gross_salary': gross,
+        'employee_pension': employee_pension,
+        'employee_health': employee_health,
+        'income_tax': income_tax,
+        'total_deductions': total_deductions,
+        'net_salary': net_salary,
+        'allowances': Decimal('0.00'),
+    }
+
+
+def compute_payslip(session, employee_id, config_loader=None):
+    emp = session.query(Employee).get(employee_id)
+    if not emp:
+        raise ValueError('Employee not found')
+
+    if config_loader is None:
+        config_loader = ConfigLoader(session)
+
+    summary = build_employee_payroll_summary(session, employee_id)
     payslip = Payslip(
         employee_id=emp.id,
-        gross_salary=gross,
-        total_deductions=total_deductions,
-        net_salary=net
+        gross_salary=summary['gross_salary'],
+        total_deductions=summary['total_deductions'],
+        net_salary=summary['net_salary']
     )
     session.add(payslip)
     session.commit()

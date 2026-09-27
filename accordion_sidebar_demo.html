@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Accordion Sidebar Demo</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0f172a;
+        font-family: Arial, sans-serif;
+      }
+
+      .sidebar {
+        width: 260px;
+        background-color: #111827;
+        color: #fff;
+        direction: rtl;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+
+      .menu-title {
+        color: #d1d5db;
+        font-weight: 700;
+        padding: 10px 12px 14px;
+      }
+
+      .menu-item {
+        margin-top: 6px;
+      }
+
+      .menu-header {
+        width: 100%;
+        background: #1f2937;
+        color: #fff;
+        border: none;
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        border-radius: 6px;
+        font-size: 15px;
+      }
+
+      .submenu-wrapper {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.3s ease-out;
+        overflow: hidden;
+      }
+
+      .submenu-content {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background-color: #1a2234;
+        padding: 6px 0 8px 0;
+      }
+
+      .submenu-content a {
+        color: #9ca3af;
+        text-decoration: none;
+        padding: 8px 18px;
+        font-size: 14px;
+        transition: color 0.2s ease;
+      }
+
+      .submenu-content a:hover {
+        color: #fff;
+      }
+
+      .menu-item.active .submenu-wrapper {
+        grid-template-rows: 1fr;
+      }
+
+      .menu-item.active .arrow {
+        transform: rotate(180deg);
+      }
+
+      .arrow {
+        display: inline-block;
+        transition: transform 0.3s ease;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <div class="menu-title">أرصدة الإدارات</div>
+
+      <div class="menu-item active">
+        <button class="menu-header" type="button" onclick="toggleMenu(this)">
+          <span>إدارة الجرد</span>
+          <span class="arrow">▲</span>
+        </button>
+        <div class="submenu-wrapper">
+          <div class="submenu-content">
+            <a href="#">قائمة الجرد العامة</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <button class="menu-header" type="button" onclick="toggleMenu(this)">
+          <span>إدارة الجمارك</span>
+          <span class="arrow">▲</span>
+        </button>
+        <div class="submenu-wrapper">
+          <div class="submenu-content">
+            <a href="#">المنطقة الحرة</a>
+            <a href="#">استلامات الشحنات الخارجية</a>
+            <a href="#">الشحنات المحلية</a>
+            <a href="#">إنشاء فاتورة صادر</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function toggleMenu(button) {
+        const currentItem = button.parentElement;
+        const allItems = document.querySelectorAll('.menu-item');
+
+        allItems.forEach(item => {
+          if (item === currentItem) {
+            item.classList.toggle('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -12,6 +12,14 @@ class HRConfig(Base):
     config_value = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
 
+class Department(Base):
+    __tablename__ = 'departments'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), nullable=False)
+    code = Column(String(50), unique=True, nullable=True)
+    employees = relationship('Employee', back_populates='department')
+
+
 class Employee(Base):
     __tablename__ = 'employees'
     id = Column(Integer, primary_key=True)
@@ -19,9 +27,15 @@ class Employee(Base):
     first_name = Column(String(128), nullable=False)
     last_name = Column(String(128), nullable=False)
     national_id = Column(String(32), unique=True)
+    department_id = Column(Integer, ForeignKey('departments.id'), nullable=True)
+    job_title = Column(String(128), nullable=True, default='غير محدد')
     hire_date = Column(Date, nullable=False)
     salary = Column(Numeric(12,2), nullable=False)
+    phone = Column(String(32), nullable=True)
+    email = Column(String(128), nullable=True)
+    status = Column(String(30), nullable=True, default='Active')
     active = Column(Boolean, default=True)
+    department = relationship('Department', back_populates='employees')
     contracts = relationship('Contract', back_populates='employee')
     documents = relationship('EmployeeDocument', back_populates='employee', cascade='all, delete-orphan')
 

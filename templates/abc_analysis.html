@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'ABC Inventory Analysis' if current_language == 'en' else 'تحليل ABC للمخزون' }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .abc-header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    .abc-filter-card { border: 1px solid #e2e8f0; background: #fff; border-radius: 14px; padding: 1rem; }
+    .abc-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .abc-card { border-radius: 14px; padding: 1.15rem; color: #0f172a; border: 1px solid rgba(15, 23, 42, .08); }
+    .abc-card-a { background: #fee2e2; border-color: #fecaca; }
+    .abc-card-b { background: #fef3c7; border-color: #fde68a; }
+    .abc-card-c { background: #dcfce7; border-color: #bbf7d0; }
+    .abc-card strong { display: block; font-size: 1.7rem; margin-top: .25rem; }
+    .abc-card small { color: #475569; }
+    .abc-chart-wrap { display: flex; align-items: center; gap: 2rem; }
+    .abc-chart { width: 190px; height: 190px; flex: 0 0 190px; border-radius: 50%; background: conic-gradient(#dc2626 0 {{ summary.A.percent }}%, #d97706 {{ summary.A.percent }}% {{ summary.A.percent + summary.B.percent }}%, #16a34a {{ summary.A.percent + summary.B.percent }}% 100%); position: relative; }
+    .abc-chart::after { content: ''; position: absolute; inset: 32px; background: #fff; border-radius: 50%; }
+    .abc-legend { display: grid; gap: .6rem; }
+    .abc-legend span { display: inline-flex; align-items: center; gap: .45rem; }
+    .abc-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+    .abc-dot-a { background: #dc2626; }
+    .abc-dot-b { background: #d97706; }
+    .abc-dot-c { background: #16a34a; }
+    .abc-badge { min-width: 34px; display: inline-block; border-radius: 999px; padding: .25rem .55rem; font-weight: 700; }
+    .abc-badge-a { color: #991b1b; background: #fee2e2; }
+    .abc-badge-b { color: #92400e; background: #fef3c7; }
+    .abc-badge-c { color: #166534; background: #dcfce7; }
+    @media (max-width: 768px) { .abc-summary { grid-template-columns: 1fr; } .abc-chart-wrap { flex-direction: column; align-items: flex-start; } .abc-header { flex-direction: column; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="abc-header mb-3">
+        <div>
+            <h3><i class="fas fa-chart-pie text-primary"></i> {{ 'ABC Inventory Analysis' if current_language == 'en' else 'تحليل ABC للمخزون' }}</h3>
+            <p class="text-muted mb-0">{{ 'Classify items by withdrawal value using the Pareto 80/20 method.' if current_language == 'en' else 'تصنيف الأصناف حسب قيمة السحب باستخدام قاعدة بارهتو 80/20.' }}</p>
+        </div>
+        <a href="/reports/current-stock" class="btn btn-outline-secondary">{{ 'Current stock report' if current_language == 'en' else 'تقرير الرصيد الحالي' }}</a>
+    </div>
+
+    <div class="abc-filter-card mb-4 no-print">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">{{ 'Department' if current_language == 'en' else 'القسم' }}</label>
+                <select name="department" class="form-select">
+                    <option value="">{{ 'All departments' if current_language == 'en' else 'كل الأقسام' }}</option>
+                    <option value="local_purchases" {% if department == 'local_purchases' %}selected{% endif %}>{{ 'Local purchases' if current_language == 'en' else 'المشتريات المحلية' }}</option>
+                    <option value="external_purchases" {% if department == 'external_purchases' %}selected{% endif %}>{{ 'External purchases' if current_language == 'en' else 'المشتريات الخارجية' }}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">{{ 'From date' if current_language == 'en' else 'من تاريخ' }}</label>
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">{{ 'To date' if current_language == 'en' else 'إلى تاريخ' }}</label>
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">{{ 'Dead stock age (months)' if current_language == 'en' else 'مدة الركود (بالشهور)' }}</label>
+                <input type="number" name="dead_months" min="1" max="60" class="form-control" value="{{ dead_months }}">
+            </div>
+            <div class="col-md-2 d-grid">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-filter"></i> {{ 'Analyze' if current_language == 'en' else 'تحليل' }}</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="abc-summary mb-4">
+        {% for category, css_class, title_en, title_ar in [('A', 'abc-card-a', 'Critical items', 'أصناف حيوية'), ('B', 'abc-card-b', 'Medium-priority items', 'أصناف متوسطة'), ('C', 'abc-card-c', 'Low-value / dead-risk items', 'أصناف منخفضة القيمة')] %}
+        <div class="abc-card {{ css_class }}">
+            <div class="d-flex justify-content-between"><strong class="m-0">{{ category }}</strong><span>{{ title_en if current_language == 'en' else title_ar }}</span></div>
+            <strong>{{ summary[category].count }}</strong>
+            <small>{{ 'Value:' if current_language == 'en' else 'القيمة:' }} {{ '%.2f'|format(summary[category].value) }} ({{ '%.1f'|format(summary[category].percent) }}%)</small>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body abc-chart-wrap">
+            <div class="abc-chart" aria-label="ABC value distribution"></div>
+            <div class="abc-legend">
+                <h5>{{ 'Value distribution' if current_language == 'en' else 'توزيع القيمة' }}</h5>
+                <span><i class="abc-dot abc-dot-a"></i> A: {{ '%.1f'|format(summary.A.percent) }}%</span>
+                <span><i class="abc-dot abc-dot-b"></i> B: {{ '%.1f'|format(summary.B.percent) }}%</span>
+                <span><i class="abc-dot abc-dot-c"></i> C: {{ '%.1f'|format(summary.C.percent) }}%</span>
+                <small class="text-muted">{{ 'Total movement value:' if current_language == 'en' else 'إجمالي قيمة الحركة:' }} {{ '%.2f'|format(total_value) }}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header"><strong>{{ 'ABC item detail' if current_language == 'en' else 'تفاصيل تصنيف الأصناف' }}</strong></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle text-center mb-0" data-export="true">
+                <thead><tr>
+                    <th>#</th><th>{{ 'Item' if current_language == 'en' else 'الصنف' }}</th><th>{{ 'Department' if current_language == 'en' else 'القسم' }}</th><th>{{ 'Withdrawals' if current_language == 'en' else 'عدد مرات السحب' }}</th><th>{{ 'Quantity withdrawn' if current_language == 'en' else 'كمية السحب' }}</th><th>{{ 'Movement value' if current_language == 'en' else 'قيمة الحركة' }}</th><th>{{ 'Share' if current_language == 'en' else 'النسبة' }}</th><th>{{ 'Class' if current_language == 'en' else 'الفئة' }}</th>
+                </tr></thead>
+                <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ loop.index }}</td><td>{{ item.item_name_en if current_language == 'en' and item.item_name_en else item.item_name_ar }}</td><td>{{ item.department or '-' }}</td><td>{{ item.withdrawal_count }}</td><td>{{ '%.2f'|format(item.withdrawal_qty) }}</td><td>{{ '%.2f'|format(item.movement_value) }}</td><td>{{ '%.1f'|format(item.value_percent) }}%</td><td><span class="abc-badge abc-badge-{{ item.abc_category|lower }}">{{ item.abc_category }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="8" class="text-muted py-4">{{ 'No item movements found for this period.' if current_language == 'en' else 'لا توجد حركات أصناف خلال هذه الفترة.' }}</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header d-flex justify-content-between align-items-center"><strong>{{ 'Dead stock' if current_language == 'en' else 'الأصناف الراكدة' }}</strong><span class="badge bg-warning text-dark">{{ dead_stock|length }}</span></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle text-center mb-0" data-export="true">
+                <thead><tr><th>#</th><th>{{ 'Item' if current_language == 'en' else 'الصنف' }}</th><th>{{ 'Current stock' if current_language == 'en' else 'الرصيد الحالي' }}</th><th>{{ 'Last withdrawal' if current_language == 'en' else 'آخر سحب' }}</th><th>{{ 'Class' if current_language == 'en' else 'الفئة' }}</th></tr></thead>
+                <tbody>
+                {% for item in dead_stock %}<tr><td>{{ loop.index }}</td><td>{{ item.item_name_en if current_language == 'en' and item.item_name_en else item.item_name_ar }}</td><td>{{ item.current_stock }}</td><td>{{ item.last_out_at or ('Never' if current_language == 'en' else 'لم يتم السحب') }}</td><td><span class="abc-badge abc-badge-{{ item.abc_category|lower }}">{{ item.abc_category }}</span></td></tr>
+                {% else %}<tr><td colspan="5" class="text-muted py-4">{{ 'No dead stock found for this threshold.' if current_language == 'en' else 'لا توجد أصناف راكدة حسب هذا الحد.' }}</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

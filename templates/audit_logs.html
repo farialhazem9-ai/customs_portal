@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Activity log' if current_language == 'en' else 'سجل النشاطات' }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="page-title d-flex justify-content-between align-items-center">
+        <div>
+            <h3><i class="fas fa-clock-rotate-left text-primary"></i> {{ 'Activity log' if current_language == 'en' else 'سجل النشاطات' }}</h3>
+            <small>{{ 'Track sensitive operations, users, modules, IP addresses, and timestamps.' if current_language == 'en' else 'متابعة العمليات الحساسة والمستخدمين والأقسام وعناوين IP والتوقيت.' }}</small>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{{ 'User' if current_language == 'en' else 'المستخدم' }}</label>
+                    <input type="search" name="username" class="form-control" value="{{ filters.username }}" placeholder="{{ 'Username' if current_language == 'en' else 'اسم المستخدم' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{{ 'Action' if current_language == 'en' else 'نوع العمل' }}</label>
+                    <select name="action" class="form-select">
+                        <option value="">{{ 'All actions' if current_language == 'en' else 'كل العمليات' }}</option>
+                        {% for value in action_options %}
+                        <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>
+                            {% if current_language == 'en' %}{{ value|capitalize }}{% elif value == 'create' %}إضافة{% elif value == 'update' %}تعديل{% elif value == 'delete' %}حذف{% elif value == 'login' %}تسجيل دخول{% elif value == 'logout' %}تسجيل خروج{% elif value == 'export' %}تصدير{% else %}عرض{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{{ 'Module' if current_language == 'en' else 'القسم' }}</label>
+                    <select name="module" class="form-select">
+                        <option value="">{{ 'All modules' if current_language == 'en' else 'كل الأقسام' }}</option>
+                        {% for value in module_options %}
+                        <option value="{{ value }}" {% if filters.module == value %}selected{% endif %}>
+                            {% if current_language == 'en' %}{{ value|replace('_', ' ')|title }}{% elif value == 'inventory' %}المخزون{% elif value == 'warehouses' %}المخازن{% elif value == 'suppliers' %}الموردون{% elif value == 'purchasing' %}المشتريات{% elif value == 'customs' %}الجمارك{% elif value == 'external_purchases' %}المشتريات الخارجية{% elif value == 'local_purchases' %}المشتريات المحلية{% elif value == 'users' %}المستخدمون{% elif value == 'hr' %}الموارد البشرية{% elif value == 'exchange' %}أسعار العملات{% elif value == 'companies' %}الشركات{% elif value == 'reports' %}التقارير{% elif value == 'audit' %}سجل النشاطات{% elif value == 'auth' %}الدخول{% else %}{{ value }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{{ 'From' if current_language == 'en' else 'من تاريخ' }}</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{{ 'To' if current_language == 'en' else 'إلى تاريخ' }}</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-filter"></i> {{ 'Filter' if current_language == 'en' else 'بحث' }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle text-center mb-0" data-export="true">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>{{ 'Date and time' if current_language == 'en' else 'التاريخ والوقت' }}</th>
+                    <th>{{ 'User' if current_language == 'en' else 'المستخدم' }}</th>
+                    <th>{{ 'Action' if current_language == 'en' else 'نوع العمل' }}</th>
+                    <th>{{ 'Module' if current_language == 'en' else 'القسم' }}</th>
+                    <th>{{ 'Description' if current_language == 'en' else 'التفاصيل' }}</th>
+                    <th>{{ 'IP address' if current_language == 'en' else 'عنوان IP' }}</th>
+                    <th>{{ 'Status' if current_language == 'en' else 'الحالة' }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>{{ log.created_at }}</td>
+                    <td>{{ log.username or '-' }}</td>
+                    <td>
+                        {% if current_language == 'en' %}{{ log.action|capitalize }}{% elif log.action == 'create' %}إضافة{% elif log.action == 'update' %}تعديل{% elif log.action == 'delete' %}حذف{% elif log.action == 'login' %}تسجيل دخول{% elif log.action == 'logout' %}تسجيل خروج{% elif log.action == 'export' %}تصدير{% else %}عرض{% endif %}
+                    </td>
+                    <td>{% if current_language == 'en' %}{{ log.module|replace('_', ' ')|title }}{% elif log.module == 'inventory' %}المخزون{% elif log.module == 'warehouses' %}المخازن{% elif log.module == 'suppliers' %}الموردون{% elif log.module == 'purchasing' %}المشتريات{% elif log.module == 'customs' %}الجمارك{% elif log.module == 'external_purchases' %}المشتريات الخارجية{% elif log.module == 'local_purchases' %}المشتريات المحلية{% elif log.module == 'users' %}المستخدمون{% elif log.module == 'hr' %}الموارد البشرية{% elif log.module == 'exchange' %}أسعار العملات{% elif log.module == 'companies' %}الشركات{% elif log.module == 'reports' %}التقارير{% elif log.module == 'audit' %}سجل النشاطات{% elif log.module == 'auth' %}الدخول{% else %}{{ log.module }}{% endif %}</td>
+                    <td class="text-start">{{ log.description or '-' }}</td>
+                    <td dir="ltr">{{ log.ip_address or '-' }}</td>
+                    <td>{{ log.status_code or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-muted py-4">{{ 'No activity records found.' if current_language == 'en' else 'لا توجد سجلات نشاط.' }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

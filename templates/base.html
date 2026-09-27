@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}نظام الجمارك والمخازن{% endblock %}</title>
+    <title>{% block title %}{{ 'Customs, Local & External Purchases System' if current_language == 'en' else 'نظام الجمارك والمشتريات المحلية والخارجية' }}{% endblock %}</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -94,6 +94,19 @@
         .customs-toggle[aria-expanded="true"] .customs-plus {
             transform: rotate(45deg);
         }
+        /* حل أنيميشن سلس لمربعات القائمة الجانبية عبر CSS Grid */
+        .sidebar .collapse {
+            display: grid !important;
+            grid-template-rows: 0fr;
+            overflow: hidden;
+            transition: grid-template-rows .32s ease-in-out;
+        }
+        .sidebar .collapse > * {
+            min-height: 0;
+        }
+        .sidebar .collapse.show {
+            grid-template-rows: 1fr;
+        }
         /* submenu links under a sidebar section */
         .sidebar .sub-link {
             display: block; padding: 8px 44px; color: #cbd5e1; text-decoration: none; font-size: 13px; border-radius: 8px; margin: 4px 12px;
@@ -119,6 +132,31 @@
         .sidebar a i { min-width: 20px; text-align: center; }
         .sidebar .section-title { padding: 14px 22px 8px; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
         .sidebar hr { border-color: rgba(255,255,255,.08); margin: 16px 0; }
+        .sidebar { padding: 16px 12px; box-shadow: 4px 0 18px rgba(2, 6, 23, .18); }
+        .sidebar-brand { padding: 12px 10px 18px; margin-bottom: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.1); }
+        .brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; margin-bottom: 8px; border: 1px solid rgba(125, 211, 252, .35); border-radius: 12px; background: rgba(37, 99, 235, .22); color: #e0f2fe; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
+        .brand-name { color: #fff; font-size: 16px; font-weight: 750; line-height: 1.25; }
+        .brand-subtitle { margin-top: 4px; color: #94a3b8; font-size: 11px; line-height: 1.4; }
+        .sidebar-group-title { padding: 16px 14px 7px; color: #64748b; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+        .sidebar a, .customs-toggle { min-height: 42px; }
+        .sidebar a:hover, .sidebar a.active, .customs-toggle:hover, .customs-toggle.active { background: rgba(37, 99, 235, .16); color: #e0f2fe; box-shadow: inset 3px 0 0 #38bdf8; transform: translateX(0); }
+        .sidebar a i, .customs-toggle i { width: 20px; min-width: 20px; text-align: center; color: #94a3b8; }
+        .sidebar a:hover i, .sidebar a.active i, .customs-toggle:hover i, .customs-toggle.active i { color: #7dd3fc; }
+        .customs-toggle .customs-arrow { margin-inline-start: auto; font-size: 10px; color: #64748b; transform: rotate(0deg); transition: transform .22s ease, color .22s ease; }
+        .customs-toggle[aria-expanded="true"] .customs-arrow { transform: rotate(180deg); color: #7dd3fc; }
+        .customs-toggle[aria-expanded="false"] .customs-arrow { transform: rotate(0deg); color: #64748b; }
+        .sidebar .sub-link { min-height: 34px; margin: 3px 8px; padding: 8px 38px; border-inline-start: 1px solid rgba(148, 163, 184, .18); color: #aab7ca; font-size: 12px; }
+        .sidebar .sub-link:hover, .sidebar .sub-link.active { background: rgba(37, 99, 235, .12); box-shadow: inset 2px 0 0 #60a5fa; color: #fff; transform: translateX(0); }
+        .inventory-branch-link { display: flex !important; align-items: center; gap: 8px; padding-inline-start: 30px !important; }
+        .inventory-branch-link .branch-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #64748b; }
+        .inventory-branch-link.active .branch-dot, .inventory-branch-link:hover .branch-dot { background: #38bdf8; }
+        .inventory-branch-link .branch-name { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+        .inventory-branch-link .branch-count { min-width: 22px; padding: 2px 5px; border-radius: 999px; background: rgba(148, 163, 184, .16); color: #cbd5e1; font-size: 10px; text-align: center; }
+        html[dir="ltr"] .sidebar a:hover, html[dir="ltr"] .sidebar a.active, html[dir="ltr"] .customs-toggle:hover, html[dir="ltr"] .customs-toggle.active { box-shadow: inset -3px 0 0 #38bdf8; }
+        html[dir="ltr"] .sidebar .sub-link { border-inline-start: 0; border-inline-end: 1px solid rgba(148, 163, 184, .18); }
+        html[dir="ltr"] .sidebar .sub-link:hover, html[dir="ltr"] .sidebar .sub-link.active { box-shadow: inset -2px 0 0 #60a5fa; }
+        .sidebar .logout-link { margin-top: 12px; color: #fda4af !important; background: rgba(239, 68, 68, .07); }
+        .sidebar .logout-link:hover { background: rgba(239, 68, 68, .2); color: #fecdd3 !important; box-shadow: inset 3px 0 0 #fb7185; }
         .profile-card { display: flex; align-items: center; gap: 10px; min-width: 280px; padding: 7px 10px; border: 1px solid #dbe5f2; border-right: 3px solid #2563eb; border-radius: 14px; background: linear-gradient(135deg, #ffffff, #eff6ff); box-shadow: 0 5px 16px rgba(15, 23, 42, .09); transition: transform .2s ease, box-shadow .2s ease; }
         .profile-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(37, 99, 235, .16); }
         .profile-avatar { width: 42px; height: 42px; flex: 0 0 42px; object-fit: cover; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(15, 23, 42, .18); }
@@ -135,6 +173,11 @@
         .main { margin-right: 280px; }
         .topbar { background: #ffffff; padding: 16px 26px; box-shadow: 0 16px 40px rgba(15, 23, 42, .08); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; }
         .page-content { padding: 28px 28px 36px; }
+        html[dir="ltr"] .sidebar { left: 0; right: auto; }
+        html[dir="ltr"] .main { margin-right: 0; margin-left: 280px; }
+        html[dir="ltr"] .customs-toggle { text-align: left; }
+        html[dir="ltr"] .sidebar a:hover, html[dir="ltr"] .sidebar a.active,
+        html[dir="ltr"] .sidebar .sub-link:hover, html[dir="ltr"] .sidebar .sub-link.active { transform: translateX(4px); }
         .shortcut-panel { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
         .shortcut-panel .shortcut-group { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
         .shortcut-chip {
@@ -195,11 +238,16 @@
         .btn-outline-secondary { border-radius: 999px; }
         .dropdown-menu { border-radius: 16px; box-shadow: 0 20px 60px rgba(15, 23, 42, .12); }
         .table-responsive { border-radius: 18px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .05); }
+        .export-toolbar { display: flex; justify-content: flex-end; gap: .5rem; margin: 0 0 .75rem; }
+        .export-toolbar .btn { border-radius: 8px; font-size: .82rem; }
+        .export-toolbar .btn i { margin-inline-end: .35rem; }
+        .export-preview-meta { color: #64748b; font-size: 12px; margin-bottom: 12px; }
         
         /* Print styles */
         @media print {
             body { background: white !important; color: #000 !important; }
             .sidebar, .topbar, .btn, .no-print, nav, .page-footer { display: none !important; }
+            .export-toolbar { display: none !important; }
             .main { margin: 0 !important; }
             .page-content { padding: 0 !important; }
             .card { box-shadow: none !important; border-radius: 0 !important; }
@@ -215,10 +263,13 @@
 <body>
 
 <div class="sidebar">
-    <div class="logo">
-        <i class="fas fa-box-open"></i> {{ 'Customs & Inventory' if current_language == 'en' else 'نظام الجمارك والمخازن' }}
+    <div class="sidebar-brand">
+        <div class="brand-mark">CPX</div>
+        <div class="brand-name">{{ 'Customs & Purchases' if current_language == 'en' else 'الجمارك والمشتريات' }}</div>
+        <div class="brand-subtitle">{{ 'Local & External Operations' if current_language == 'en' else 'العمليات المحلية والخارجية' }}</div>
     </div>
 
+    <div class="sidebar-group-title">{{ 'Overview' if current_language == 'en' else 'الرئيسية' }}</div>
     {% if 'admin' in user_permissions or 'department.dashboard.view' in user_permissions %}
     <a href="/dashboard"><i class="fas fa-chart-line"></i> {{ 'Dashboard' if current_language == 'en' else 'لوحة التحكم' }}</a>
     {% endif %}
@@ -226,11 +277,12 @@
     <a href="/department-balances"><i class="fas fa-balance-scale"></i> {{ 'Department Balances' if current_language == 'en' else 'أرصدة الإدارات' }}</a>
     {% endif %}
 
+    <div class="sidebar-group-title">{{ 'Operations' if current_language == 'en' else 'العمليات' }}</div>
     {% if 'admin' in user_permissions or 'department.local.view' in user_permissions %}
     <div class="customs-accordion">
-        <button class="customs-toggle {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#localPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}true{% else %}false{% endif %}" onclick="if (window.location.pathname !== '/local-purchases') window.location.href='/local-purchases';">
+        <button class="customs-toggle {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}active{% endif %}" type="button" data-target="#localPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
             <span><i class="fas fa-cart-arrow-down"></i> {{ 'Local Purchases' if current_language == 'en' else 'إدارة المشتريات المحلية' }}</span>
-            <i class="fas fa-plus customs-plus"></i>
+            <i class="fas fa-chevron-down customs-arrow"></i>
         </button>
 
         <div id="localPurchasesSubmenu" class="collapse {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}show{% endif %}">
@@ -248,11 +300,31 @@
     </div>
     {% endif %}
 
-    {% if 'admin' in user_permissions or 'department.external.view' in user_permissions or 'department.customs.view' in user_permissions %}
+    {% if 'admin' in user_permissions or 'department.customs.view' in user_permissions or 'department.local.view' in user_permissions %}
     <div class="customs-accordion">
-        <button class="customs-toggle {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#customsSubmenu" aria-expanded="{% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="if (!window.location.pathname.startsWith('/customs-management') && window.location.pathname !== '/external-purchases' && !(window.location.pathname === '/items' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/categories' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/stores' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/suppliers' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/requisitions' && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname.startsWith('/purchase-orders') && new URLSearchParams(window.location.search).get('department') === 'external_purchases') && !(window.location.pathname === '/requisition/add' && new URLSearchParams(window.location.search).get('department') === 'external_purchases')) window.location.href='/external-purchases';">
+        <button class="customs-toggle {% if request.path.startswith('/customs-management/inventory-branch') or request.path.startswith('/customs-management') and not request.path.startswith('/customs-management/inventory-branch') %}active{% endif %}" type="button" data-target="#inventoryManagementSubmenu" aria-expanded="{% if request.path.startswith('/customs-management/inventory-branch') or request.path.startswith('/customs-management') and not request.path.startswith('/customs-management/inventory-branch') %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
+            <span><i class="fas fa-boxes"></i> {{ 'Inventory Management' if current_language == 'en' else 'إدارة الجرد' }}</span>
+            <i class="fas fa-chevron-down customs-arrow"></i>
+        </button>
+
+        <div id="inventoryManagementSubmenu" class="collapse {% if request.path.startswith('/customs-management/inventory-branch') or request.path.startswith('/customs-management') and not request.path.startswith('/customs-management/inventory-branch') %}show{% endif %}">
+            <a href="/customs-management/inventory-branch" class="sub-link {% if request.path == '/customs-management/inventory-branch' and not request.args.get('store_id') %}active{% endif %}">{{ 'Inventory overview' if current_language == 'en' else 'قائمة الجرد العامة' }}</a>
+            {% for branch in inventory_branches %}
+            <a href="/customs-management/inventory-branch?store_id={{ branch.id }}" class="sub-link inventory-branch-link {% if request.path == '/customs-management/inventory-branch' and request.args.get('store_id')|int == branch.id %}active{% endif %}" title="{{ branch.store_name }}">
+                <span class="branch-dot"></span>
+                <span class="branch-name">{{ ('Inventory: ' ~ branch.store_name) if current_language == 'en' else ('جرد ' ~ branch.store_name) }}</span>
+                <span class="branch-count">{{ branch.item_count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if 'admin' in user_permissions or 'department.customs.view' in user_permissions %}
+    <div class="customs-accordion">
+        <button class="customs-toggle {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-target="#customsSubmenu" aria-expanded="{% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
             <span><i class="fas fa-shipping-fast"></i> {{ 'Customs Management' if current_language == 'en' else 'إدارة الجمارك' }}</span>
-            <i class="fas fa-plus customs-plus"></i>
+            <i class="fas fa-chevron-down customs-arrow"></i>
         </button>
 
         <div id="customsSubmenu" class="collapse {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}show{% endif %}">
@@ -263,27 +335,37 @@
             <a href="/customs-management/free-zone/trade-inside-zone" class="sub-link {% if request.path.startswith('/customs-management/free-zone/trade-inside-zone') %}active{% endif %}">الشحنات التداول داخل المنطقة</a>
             <a href="/customs-management/free-zone/trade-between-zones" class="sub-link {% if request.path.startswith('/customs-management/free-zone/trade-between-zones') %}active{% endif %}">الشحنات التداول بين المناطق</a>
             <a href="/customs-management/free-zone/entry-of-detained" class="sub-link {% if request.path.startswith('/customs-management/free-zone/entry-of-detained') %}active{% endif %}">دخول الموقوفات</a>
-            <a href="/customs-management/inventory-branch" class="sub-link {% if request.path.startswith('/customs-management/inventory-branch') %}active{% endif %}">قائمة الجرد</a>
             <a href="/customs-management/total-imports-branch" class="sub-link {% if request.path.startswith('/customs-management/total-imports-branch') %}active{% endif %}">قائمة إجمالي الواردات</a>
             <a href="/customs-management/create-export-invoice" class="sub-link {% if request.path.startswith('/customs-management/create-export-invoice') %}active{% endif %}">انشاء فاتورة صادر</a>
             <a href="/customs-management/create-final-sale" class="sub-link {% if request.path.startswith('/customs-management/create-final-sale') %}active{% endif %}">انشاء فاتورة بيع نهائي</a>
             <a href="/customs-management/create-umbrella-transfer" class="sub-link {% if request.path.startswith('/customs-management/create-umbrella-transfer') %}active{% endif %}">انشاء فاتورة تحويل مظلة</a>
             <a href="/customs-management/create-return-export" class="sub-link {% if request.path.startswith('/customs-management/create-return-export') %}active{% endif %}">انشاء فاتورة اعادة صادر</a>
 
-            <div class="sub-title" style="padding: 8px 14px 6px; color: #dbeafe; font-size: 12px; font-weight: 700; opacity: .9;">المشتريات الخارجية</div>
-            <a href="/external-purchases" class="sub-link {% if request.path == '/external-purchases' %}active{% endif %}">واجهة المشتريات الخارجية</a>
-            <a href="/items?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/items' %}active{% endif %}">الأصناف</a>
-            <a href="/categories?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/categories' %}active{% endif %}">الفئات</a>
-            <a href="/items/add/external_purchases" class="sub-link {% if request.path == '/items/add/external_purchases' %}active{% endif %}">إضافة صنف</a>
-            <a href="/stores?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/stores' %}active{% endif %}">المخازن</a>
-            <a href="/suppliers?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/suppliers' %}active{% endif %}">الموردون</a>
-            <a href="{{ url_for('add_requisition') }}?department=external_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'external_purchases' %}active{% endif %}">تقديم طلب شراء</a>
-            <a href="/requisitions?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/requisitions' %}active{% endif %}">طلبات الشراء</a>
-            <a href="/purchase-orders?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">أوامر الشراء</a>
         </div>
     </div>
     {% endif %}
 
+    {% if 'admin' in user_permissions or 'department.external.view' in user_permissions %}
+    <div class="customs-accordion">
+        <button class="customs-toggle {% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-target="#externalPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
+            <span><i class="fas fa-truck-loading"></i> {{ 'External Purchases' if current_language == 'en' else 'إدارة المشتريات الخارجية' }}</span>
+            <i class="fas fa-chevron-down customs-arrow"></i>
+        </button>
+        <div id="externalPurchasesSubmenu" class="collapse {% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}show{% endif %}">
+            <a href="/external-purchases" class="sub-link {% if request.path == '/external-purchases' %}active{% endif %}">{{ 'External purchases dashboard' if current_language == 'en' else 'واجهة المشتريات الخارجية' }}</a>
+            <a href="/items?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/items' %}active{% endif %}">{{ 'Items' if current_language == 'en' else 'الأصناف' }}</a>
+            <a href="/categories?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/categories' %}active{% endif %}">{{ 'Categories' if current_language == 'en' else 'الفئات' }}</a>
+            <a href="/items/add/external_purchases" class="sub-link {% if request.path == '/items/add/external_purchases' %}active{% endif %}">{{ 'Add item' if current_language == 'en' else 'إضافة صنف' }}</a>
+            <a href="/stores?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/stores' %}active{% endif %}">{{ 'Warehouses' if current_language == 'en' else 'المخازن' }}</a>
+            <a href="/suppliers?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/suppliers' %}active{% endif %}">{{ 'Suppliers' if current_language == 'en' else 'الموردون' }}</a>
+            <a href="{{ url_for('add_requisition') }}?department=external_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'external_purchases' %}active{% endif %}">{{ 'Submit purchase request' if current_language == 'en' else 'تقديم طلب شراء' }}</a>
+            <a href="/requisitions?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/requisitions' %}active{% endif %}">{{ 'Purchase Requests' if current_language == 'en' else 'طلبات الشراء' }}</a>
+            <a href="/purchase-orders?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">{{ 'Purchase Orders' if current_language == 'en' else 'أوامر الشراء' }}</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="sidebar-group-title">{{ 'Resources & Finance' if current_language == 'en' else 'الموارد والحسابات' }}</div>
     {% if user and ('admin' in user_permissions or 'department.users.view' in user_permissions) %}
     <a href="/roles"><i class="fas fa-user-shield"></i> {{ 'User Management' if current_language == 'en' else 'إدارة المستخدمين' }}</a>
     {% endif %}
@@ -300,13 +382,16 @@
     <a href="/companies"><i class="fas fa-building"></i> {{ 'Company Directory' if current_language == 'en' else 'إدارة دليل الشركات' }}</a>
     {% endif %}
     
-    <hr style="border-color: rgba(255,255,255,.1);">
+    <div class="sidebar-group-title">{{ 'Reports & System' if current_language == 'en' else 'التقارير والنظام' }}</div>
     {% if 'admin' in user_permissions or 'department.reports.view' in user_permissions %}
     <a href="/reports"><i class="fas fa-print"></i> {{ 'Reports' if current_language == 'en' else 'التقارير' }}</a>
+    <a href="/reports/abc-analysis"><i class="fas fa-chart-pie"></i> {{ 'ABC Analysis' if current_language == 'en' else 'تحليل ABC للمخزون' }}</a>
+    {% endif %}
+    {% if 'admin' in user_permissions or 'audit.view' in user_permissions %}
+    <a href="/audit-logs"><i class="fas fa-clock-rotate-left"></i> {{ 'Activity log' if current_language == 'en' else 'سجل النشاطات' }}</a>
     {% endif %}
     
-    <hr style="border-color: rgba(255,255,255,.1);">
-    <a href="/logout" class="text-danger"><i class="fas fa-sign-out-alt"></i> {{ 'Sign out' if current_language == 'en' else 'تسجيل الخروج' }}</a>
+    <a href="/logout" class="logout-link"><i class="fas fa-sign-out-alt"></i> {{ 'Sign out' if current_language == 'en' else 'تسجيل الخروج' }}</a>
 </div>
 
 <div class="main">
@@ -491,6 +576,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
     function updateDateTime() {
         const now = new Date();
@@ -504,7 +590,7 @@
             second: '2-digit',
             hour12: false
         };
-        const formatter = new Intl.DateTimeFormat('ar-EG', options);
+        const formatter = new Intl.DateTimeFormat('{{ "en-US" if current_language == "en" else "ar-EG" }}', options);
         const dateTimeString = formatter.format(now);
         const element = document.getElementById('currentDateTime');
         if (element) {
@@ -537,9 +623,42 @@
     });
 </script>
 <script>
+    function toggleSidebarAccordion(button) {
+        const allToggles = document.querySelectorAll('.customs-toggle');
+        const targetSelector = button.getAttribute('data-target');
+        const targetPanel = targetSelector ? document.querySelector(targetSelector) : null;
+        const shouldOpen = !(targetPanel && targetPanel.classList.contains('show'));
+
+        allToggles.forEach(function(item) {
+            const itemTarget = item.getAttribute('data-target');
+            const itemPanel = itemTarget ? document.querySelector(itemTarget) : null;
+            const isCurrent = item === button;
+            const nextOpen = isCurrent ? shouldOpen : false;
+
+            item.classList.toggle('active', nextOpen);
+            item.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+            if (itemPanel) {
+                itemPanel.classList.toggle('show', nextOpen);
+            }
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const currentPath = window.location.pathname;
         const currentDepartment = new URLSearchParams(window.location.search).get('department');
+
+        function applyToggleState(toggle, isOpen) {
+            const targetSelector = toggle.getAttribute('data-target');
+            const collapse = targetSelector ? document.querySelector(targetSelector) : null;
+
+            toggle.classList.toggle('active', isOpen);
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+            if (collapse) {
+                collapse.classList.toggle('show', isOpen);
+            }
+        }
+
         let activeSubLink = null;
 
         document.querySelectorAll('.sidebar .sub-link').forEach(function(link) {
@@ -557,14 +676,206 @@
         if (activeSubLink) {
             const submenu = activeSubLink.closest('.collapse');
             if (submenu) {
-                submenu.classList.add('show');
-                const toggle = document.querySelector('[data-bs-target="#' + submenu.id + '"]');
+                const toggle = document.querySelector('[data-target="#' + submenu.id + '"]');
                 if (toggle) {
-                    toggle.classList.add('active');
-                    toggle.setAttribute('aria-expanded', 'true');
+                    applyToggleState(toggle, true);
                 }
             }
         }
+
+        document.querySelectorAll('.customs-toggle').forEach(function(toggle) {
+            const targetSelector = toggle.getAttribute('data-target');
+            const targetPanel = targetSelector ? document.querySelector(targetSelector) : null;
+            const initialState = toggle.getAttribute('aria-expanded') === 'true' || (targetPanel && targetPanel.classList.contains('show'));
+            applyToggleState(toggle, initialState);
+        });
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const isEnglish = {{ 'true' if current_language == 'en' else 'false' }};
+        const labels = isEnglish
+            ? { export: 'Export', excel: 'Excel', pdf: 'PDF / Print', columns: 'Columns', from: 'From', to: 'To', title: 'Report', brand: 'Customs, Local & External Purchases System', generated: 'Generated', total: 'Total', rows: 'rows', page: 'Page', empty: 'No data to export' }
+            : { export: 'تصدير', excel: 'Excel', pdf: 'PDF / طباعة', columns: 'الأعمدة', from: 'من تاريخ', to: 'إلى تاريخ', title: 'تقرير', brand: 'نظام الجمارك والمخازن', generated: 'تاريخ الاستخراج', total: 'الإجمالي', rows: 'صفوف', page: 'صفحة', empty: 'لا توجد بيانات للتصدير' };
+
+        function cleanCell(cell) {
+            return (cell.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, function(char) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+            });
+        }
+
+        function getExportData(table, settings) {
+            const headerCells = Array.from(table.querySelectorAll('thead th'));
+            const ignored = new Set();
+            headerCells.forEach(function(cell, index) {
+                const heading = cleanCell(cell).toLowerCase();
+                if (heading === 'actions' || heading === 'action' || heading === 'الإجراءات' || heading === 'إجراء' || heading === 'الإجراء') {
+                    ignored.add(index);
+                }
+            });
+
+            const selected = settings && settings.columns ? settings.columns : null;
+            const headers = headerCells
+                .map((cell, index) => ({ cell: cleanCell(cell), index: index }))
+                .filter(item => !ignored.has(item.index) && (!selected || selected.has(item.index)))
+                .map(item => item.cell);
+            const rows = [];
+            table.querySelectorAll('tbody tr').forEach(function(row) {
+                if (row.style.display === 'none' || row.hidden) return;
+                const cells = Array.from(row.children);
+                if (!cells.length) return;
+                if (settings && (settings.from || settings.to)) {
+                    const dateValue = cells.map(cleanCell).find(value => /\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(value));
+                    const parsed = dateValue ? new Date(dateValue) : null;
+                    if (parsed && !Number.isNaN(parsed.getTime())) {
+                        const day = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+                        if (settings.from && day < settings.from) return;
+                        if (settings.to && day > settings.to) return;
+                    }
+                }
+                const values = cells
+                    .map((cell, index) => ({ value: cleanCell(cell), index: index }))
+                    .filter(item => !ignored.has(item.index) && (!selected || selected.has(item.index)))
+                    .map(item => item.value);
+                if (values.some(Boolean)) rows.push(values);
+            });
+            return { headers: headers, rows: rows };
+        }
+
+        function reportTitle(table) {
+            const wrapper = table.closest('.card, .table-responsive, .container, .container-fluid');
+            const heading = wrapper && wrapper.querySelector('h1, h2, h3, h4, h5, h6');
+            return heading ? cleanCell(heading) : labels.title;
+        }
+
+        function getSettings(toolbar, table) {
+            const columns = new Set();
+            toolbar.querySelectorAll('input[data-column]:checked').forEach(input => columns.add(Number(input.dataset.column)));
+            const fromValue = toolbar.querySelector('[data-date-from]').value;
+            const toValue = toolbar.querySelector('[data-date-to]').value;
+            return {
+                columns: columns.size ? columns : null,
+                from: fromValue ? new Date(fromValue + 'T00:00:00') : null,
+                to: toValue ? new Date(toValue + 'T00:00:00') : null
+            };
+        }
+
+        function logExport(table, format, settings) {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) return;
+            const title = reportTitle(table);
+            const path = window.location.pathname;
+            let module = 'system';
+            if (path.startsWith('/customs-management')) module = 'customs';
+            else if (path.startsWith('/external-purchases')) module = 'external_purchases';
+            else if (path.startsWith('/local-purchases')) module = 'local_purchases';
+            else if (path.startsWith('/items') || path.startsWith('/categories')) module = 'inventory';
+            else if (path.startsWith('/stores')) module = 'warehouses';
+            else if (path.startsWith('/suppliers')) module = 'suppliers';
+            else if (path.startsWith('/requisition') || path.startsWith('/requisitions') || path.startsWith('/purchase-orders') || path.startsWith('/create_order')) module = 'purchasing';
+            else if (path.startsWith('/roles')) module = 'users';
+            else if (path.startsWith('/hr/')) module = 'hr';
+            else if (path.startsWith('/exchange-rates')) module = 'exchange';
+            else if (path.startsWith('/companies')) module = 'companies';
+            else if (path.startsWith('/reports')) module = 'reports';
+            else if (path.startsWith('/audit-logs')) module = 'audit';
+            fetch('/audit-logs/event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+                body: JSON.stringify({
+                    action: 'export',
+                    module: module,
+                    description: format + ' export: ' + title + (settings.from || settings.to ? ' (date filter)' : '')
+                })
+            }).catch(function() {});
+        }
+
+        function downloadExcel(table, settings) {
+            if (!window.XLSX) {
+                window.alert(isEnglish ? 'Excel export library is unavailable.' : 'مكتبة تصدير Excel غير متاحة.');
+                return;
+            }
+            const data = getExportData(table, settings);
+            if (!data.rows.length) { window.alert(labels.empty); return; }
+            const output = [data.headers].concat(data.rows);
+            const totalColumns = data.headers.map(function(header, index) {
+                const text = header.toLowerCase();
+                return index > 0 && /(quantity|total|amount|price|stock|balance|value|fees|الكمية|الإجمالي|المبلغ|السعر|الرصيد|القيمة|الرسوم)/i.test(text);
+            });
+            const totals = data.headers.map(function(_, index) {
+                if (!totalColumns[index]) return index === 0 ? labels.total : '';
+                const sum = data.rows.reduce(function(total, row) {
+                    const value = Number(String(row[index] || '').replace(/[^0-9.-]/g, ''));
+                    return Number.isFinite(value) ? total + value : total;
+                }, 0);
+                return sum ? Number(sum.toFixed(2)) : '';
+            });
+            if (totals.some(Boolean)) output.push(totals);
+
+            const sheet = XLSX.utils.aoa_to_sheet(output);
+            data.headers.forEach(function(_, index) {
+                const headerCell = sheet[XLSX.utils.encode_cell({ r: 0, c: index })];
+                if (headerCell) headerCell.s = { fill: { fgColor: { rgb: '0F172A' } }, font: { bold: true, color: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center' } };
+                const totalCell = sheet[XLSX.utils.encode_cell({ r: output.length - 1, c: index })];
+                if (totalCell && totals.some(Boolean)) totalCell.s = { fill: { fgColor: { rgb: 'DBEAFE' } }, font: { bold: true, color: { rgb: '0F172A' } } };
+            });
+            sheet['!cols'] = data.headers.map(function(header, index) {
+                const max = Math.max(header.length, ...output.slice(1).map(row => String(row[index] || '').length));
+                return { wch: Math.min(Math.max(max + 2, 12), 36) };
+            });
+            sheet['!sheetViews'] = [{ rightToLeft: !isEnglish }];
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Report');
+            const filename = reportTitle(table).replace(/[^a-z0-9\u0600-\u06ff]+/gi, '_').replace(/^_|_$/g, '') || 'report';
+            XLSX.writeFile(workbook, filename + '.xlsx');
+        }
+
+        function printPdf(table, settings) {
+            const data = getExportData(table, settings);
+            if (!data.rows.length) { window.alert(labels.empty); return; }
+            const popup = window.open('', '_blank', 'width=1100,height=800');
+            if (!popup) return;
+            const title = reportTitle(table);
+            const rows = data.rows.map(row => '<tr>' + row.map(value => '<td>' + escapeHtml(value) + '</td>').join('') + '</tr>').join('');
+            const landscape = data.headers.length > 7;
+            popup.document.write('<!doctype html><html lang="' + (isEnglish ? 'en' : 'ar') + '" dir="' + (isEnglish ? 'ltr' : 'rtl') + '"><head><meta charset="utf-8"><title>' + escapeHtml(title) + '</title><style>body{font-family:Arial,Tahoma,sans-serif;color:#111827;padding:24px 24px 42px}header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:14px}h1{font-size:22px;margin:0 0 6px;color:#0f172a}.brand{font-size:14px;font-weight:700;color:#2563eb}.meta{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;font-size:12px}thead{display:table-header-group}th{background:#0f172a;color:#fff;font-weight:700}th,td{border:1px solid #cbd5e1;padding:7px;text-align:inherit}tr:nth-child(even){background:#f8fafc}footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #cbd5e1;padding-top:7px;color:#64748b;font-size:11px;text-align:center}@page{size:' + (landscape ? 'A4 landscape' : 'A4 portrait') + ';margin:12mm 10mm 16mm}footer:after{content:"' + labels.page + ' " counter(page) " of " counter(pages)}</style></head><body><header><div><div class="brand">' + escapeHtml(labels.brand) + '</div><h1>' + escapeHtml(title) + '</h1><div class="meta">' + labels.generated + ': ' + new Date().toLocaleString(isEnglish ? 'en-US' : 'ar-EG') + '</div></div><div class="meta">' + data.rows.length + ' ' + labels.rows + '</div></header><table><thead><tr>' + data.headers.map(value => '<th>' + escapeHtml(value) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table><footer></footer></body></html>');
+            popup.document.close();
+            popup.focus();
+            popup.onload = function() { popup.print(); };
+        }
+
+        document.querySelectorAll('.table-responsive table, table[data-export="true"]').forEach(function(table) {
+            if (table.closest('.export-preview')) return;
+            const host = table.closest('.table-responsive') || table.parentElement;
+            if (!host || host.querySelector(':scope > .export-toolbar')) return;
+            const toolbar = document.createElement('div');
+            toolbar.className = 'export-toolbar no-print';
+            const headers = Array.from(table.querySelectorAll('thead th'));
+            toolbar.innerHTML = '<div class="dropdown"><button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="fas fa-file-export"></i>' + labels.export + '</button><div class="dropdown-menu dropdown-menu-end p-3" style="min-width:260px"><div class="small fw-bold mb-2">' + labels.columns + '</div><div class="export-columns mb-2"></div><div class="row g-2 mb-2"><div class="col"><label class="small">' + labels.from + '</label><input type="date" class="form-control form-control-sm" data-date-from></div><div class="col"><label class="small">' + labels.to + '</label><input type="date" class="form-control form-control-sm" data-date-to></div></div><button type="button" class="dropdown-item export-excel"><i class="fas fa-file-excel text-success"></i> ' + labels.excel + '</button><button type="button" class="dropdown-item export-pdf"><i class="fas fa-file-pdf text-danger"></i> ' + labels.pdf + '</button></div></div>';
+            const columnsHost = toolbar.querySelector('.export-columns');
+            headers.forEach(function(header, index) {
+                const name = cleanCell(header);
+                const input = document.createElement('label');
+                input.className = 'd-block small mb-1';
+                input.innerHTML = '<input type="checkbox" data-column="' + index + '" checked> ' + name;
+                columnsHost.appendChild(input);
+            });
+            host.parentNode.insertBefore(toolbar, host);
+            toolbar.querySelector('.export-pdf').addEventListener('click', function() {
+                const settings = getSettings(toolbar, table);
+                logExport(table, 'PDF', settings);
+                printPdf(table, settings);
+            });
+            toolbar.querySelector('.export-excel').addEventListener('click', function() {
+                const settings = getSettings(toolbar, table);
+                logExport(table, 'Excel', settings);
+                downloadExcel(table, settings);
+            });
+        });
     });
 </script>
 {% block extra_js %}{% endblock %}

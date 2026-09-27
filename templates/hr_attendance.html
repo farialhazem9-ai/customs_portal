@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}الحضور والانصراف{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">الحضور والانصراف</h3>
+      <small class="text-muted">لوحة مراقبة البصمة، التأخير، والغياب</small>
+    </div>
+    <a href="/hr/dashboard" class="btn btn-outline-secondary btn-sm">عودة للوحة</a>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h5>إحصائيات اليوم</h5>
+          <ul class="list-group list-group-flush mt-3">
+            <li class="list-group-item d-flex justify-content-between"><span>الحاضرون</span><strong>142</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span>المتأخرون</span><strong>9</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span>الغياب</span><strong>5</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span>الساعات الإضافية</span><strong>18.5</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>الموظف</th>
+                  <th>القسم</th>
+                  <th>الدخول</th>
+                  <th>الخروج</th>
+                  <th>الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for emp in employees %}
+                <tr>
+                  <td>{{ emp.first_name }} {{ emp.last_name }}</td>
+                  <td>{{ emp.department.name if emp.department else 'غير محدد' }}</td>
+                  <td>08:15</td>
+                  <td>17:30</td>
+                  <td><span class="badge bg-success">حاضر</span></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

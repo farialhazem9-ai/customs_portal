@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}لوحة إدارة شؤون العاملين{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">لوحة إدارة شؤون العاملين</h3>
+      <small class="text-muted">إدارة الموظفين، الحضور، الرواتب، والإجازات</small>
+    </div>
+    <a href="/hr/employees/add" class="btn btn-primary btn-sm">إضافة موظف</a>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted mb-2">إجمالي الموظفين</div>
+          <div class="display-6 fw-bold">{{ total_employees }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted mb-2">موظفين على رأس العمل</div>
+          <div class="display-6 fw-bold text-success">{{ active_employees }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted mb-2">الإدارات</div>
+          <div class="display-6 fw-bold text-primary">{{ departments|length }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted mb-2">ما قبل الدفع</div>
+          <div class="display-6 fw-bold text-warning">دفع</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6 col-lg-3">
+      <a href="/hr/employees" class="card text-decoration-none text-dark border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-1 mb-2">👥</div>
+          <h5>دليل الموظفين</h5>
+          <small class="text-muted">عرض وتعديل بيانات العاملين</small>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <a href="/hr/attendance" class="card text-decoration-none text-dark border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-1 mb-2">⏰</div>
+          <h5>الحضور والانصراف</h5>
+          <small class="text-muted">شفتات، تأخير، ساعات إضافية</small>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <a href="/hr/payroll" class="card text-decoration-none text-dark border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-1 mb-2">💰</div>
+          <h5>الأجور والمرتبات</h5>
+          <small class="text-muted">الرائب الأساسي والبدلات والخصومات</small>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <a href="/hr/leaves" class="card text-decoration-none text-dark border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-1 mb-2">📅</div>
+          <h5>الإجازات</h5>
+          <small class="text-muted">طلبات الإجازات والموافقات</small>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -37,6 +37,14 @@
                         <label class="form-label">المستلم / الطرف</label>
                         <input type="text" name="recipient" class="form-control" value="{{ invoice.party if invoice else '' }}">
                     </div>
+                    <div class="col-md-3 mt-2">
+                        <label class="form-label">رقم إذن التخزين</label>
+                        <input type="text" name="storage_permit_no" class="form-control" value="{{ invoice.storage_permit_no if invoice else '' }}" placeholder="أدخل رقم إذن التخزين">
+                    </div>
+                    <div class="col-md-3 mt-2">
+                        <label class="form-label">رقم الصادر</label>
+                        <input type="text" name="export_no" class="form-control" value="{{ invoice.export_no if invoice else '' }}" placeholder="أدخل رقم الصادر">
+                    </div>
 
                     <div class="col-md-4 mt-2">
                         <label class="form-label">ربط بالبيان (ACID)</label>
