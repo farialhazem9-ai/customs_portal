@@ -41,7 +41,29 @@ except ImportError as e:
     else:
         raise
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+possible_template_paths = [
+    os.path.join(BASE_DIR, 'templates'),
+    os.path.join(os.getcwd(), 'templates'),
+    os.path.join(BASE_DIR, 'customs_portal', 'templates'),
+]
+
+template_dir = None
+for path in possible_template_paths:
+    if os.path.exists(path) and os.path.isdir(path):
+        template_dir = path
+        break
+
+if not template_dir:
+    template_dir = os.path.join(BASE_DIR, 'templates')
+    os.makedirs(template_dir, exist_ok=True)
+    login_file = os.path.join(template_dir, 'login.html')
+    if not os.path.exists(login_file):
+        with open(login_file, 'w', encoding='utf-8') as f:
+            f.write('<!DOCTYPE html><html><head><title>Login</title></head><body><h2>تسجيل الدخول</h2></body></html>')
+
+app = Flask(__name__, template_folder=template_dir)
 app.secret_key = os.environ.get('APP_SECRET_KEY') or secrets.token_hex(32)
 
 # Flask-WTF / CSRF configuration (professional defaults)

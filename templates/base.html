@@ -279,25 +279,9 @@
 
     <div class="sidebar-group-title">{{ 'Operations' if current_language == 'en' else 'العمليات' }}</div>
     {% if 'admin' in user_permissions or 'department.local.view' in user_permissions %}
-    <div class="customs-accordion">
-        <button class="customs-toggle {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}active{% endif %}" type="button" data-target="#localPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
-            <span><i class="fas fa-cart-arrow-down"></i> {{ 'Local Purchases' if current_language == 'en' else 'إدارة المشتريات المحلية' }}</span>
-            <i class="fas fa-chevron-down customs-arrow"></i>
-        </button>
-
-        <div id="localPurchasesSubmenu" class="collapse {% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}show{% endif %}">
-            <a href="/items?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/items' %}active{% endif %}">{{ 'Items' if current_language == 'en' else 'الأصناف' }}</a>
-            <a href="/categories?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/categories' %}active{% endif %}">{{ 'Categories' if current_language == 'en' else 'الفئات' }}</a>
-            <a href="/items/add/local_purchases" class="sub-link {% if request.path == '/items/add/local_purchases' %}active{% endif %}">{{ 'Add item' if current_language == 'en' else 'إضافة صنف' }}</a>
-            <a href="/stores?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/stores' %}active{% endif %}">{{ 'Warehouses' if current_language == 'en' else 'المخازن' }}</a>
-            <a href="/suppliers?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/suppliers' %}active{% endif %}">{{ 'Suppliers' if current_language == 'en' else 'الموردون' }}</a>
-            <a href="{{ url_for('add_requisition') }}?department=local_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'local_purchases' %}active{% endif %}">{{ 'Submit purchase request' if current_language == 'en' else 'تقديم طلب شراء' }}</a>
-            <a href="/requisitions?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path == '/requisitions' %}active{% endif %}">{{ 'Purchase Requests' if current_language == 'en' else 'طلبات الشراء' }}</a>
-            <a href="/purchase-orders?department=local_purchases" class="sub-link {% if request.args.get('department') == 'local_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">{{ 'Purchase Orders' if current_language == 'en' else 'أوامر الشراء' }}</a>
-            <a href="/local-purchases/issue-vouchers" class="sub-link {% if request.path.startswith('/local-purchases/issue-vouchers') %}active{% endif %}">{{ 'Local issue vouchers' if current_language == 'en' else 'أذونات الصرف المحلية' }}</a>
-            <a href="/local-purchases/issue/add" class="sub-link {% if request.path.startswith('/local-purchases/issue/add') %}active{% endif %}">{{ 'Create local issue voucher' if current_language == 'en' else 'إنشاء إذن صرف محلي' }}</a>
-        </div>
-    </div>
+    <a href="/local-purchases" class="{% if request.path.startswith('/local-purchases') or request.args.get('department') == 'local_purchases' or request.path == '/items' and request.args.get('department') == 'local_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'local_purchases' %}active{% endif %}">
+        <i class="fas fa-cart-arrow-down"></i> {{ 'Local Purchases' if current_language == 'en' else 'إدارة المشتريات المحلية' }}
+    </a>
     {% endif %}
 
     {% if 'admin' in user_permissions or 'department.customs.view' in user_permissions or 'department.local.view' in user_permissions %}
@@ -321,48 +305,15 @@
     {% endif %}
 
     {% if 'admin' in user_permissions or 'department.customs.view' in user_permissions %}
-    <div class="customs-accordion">
-        <button class="customs-toggle {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-target="#customsSubmenu" aria-expanded="{% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
-            <span><i class="fas fa-shipping-fast"></i> {{ 'Customs Management' if current_language == 'en' else 'إدارة الجمارك' }}</span>
-            <i class="fas fa-chevron-down customs-arrow"></i>
-        </button>
-
-        <div id="customsSubmenu" class="collapse {% if request.path.startswith('/customs-management') or request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' or request.path == '/items' and request.args.get('department') == 'external_purchases' or request.path in ['/categories', '/stores', '/suppliers', '/requisitions', '/purchase-orders', '/requisition/add'] and request.args.get('department') == 'external_purchases' %}show{% endif %}">
-            <div class="sub-title" style="padding: 8px 14px 6px; color: #dbeafe; font-size: 12px; font-weight: 700; opacity: .9;">الفروع الجمركية</div>
-            <a href="/customs-management" class="sub-link {% if request.path == '/customs-management' %}active{% endif %}">المنطقة الحرة</a>
-            <a href="/customs-management/free-zone/receiving-foreign-shipments" class="sub-link {% if request.path.startswith('/customs-management/free-zone/receiving-foreign-shipments') %}active{% endif %}">استلامات الشحنات الخارجية</a>
-            <a href="/customs-management/free-zone/local-shipments" class="sub-link {% if request.path.startswith('/customs-management/free-zone/local-shipments') %}active{% endif %}">الشحنات المحلية</a>
-            <a href="/customs-management/free-zone/trade-inside-zone" class="sub-link {% if request.path.startswith('/customs-management/free-zone/trade-inside-zone') %}active{% endif %}">الشحنات التداول داخل المنطقة</a>
-            <a href="/customs-management/free-zone/trade-between-zones" class="sub-link {% if request.path.startswith('/customs-management/free-zone/trade-between-zones') %}active{% endif %}">الشحنات التداول بين المناطق</a>
-            <a href="/customs-management/free-zone/entry-of-detained" class="sub-link {% if request.path.startswith('/customs-management/free-zone/entry-of-detained') %}active{% endif %}">دخول الموقوفات</a>
-            <a href="/customs-management/total-imports-branch" class="sub-link {% if request.path.startswith('/customs-management/total-imports-branch') %}active{% endif %}">قائمة إجمالي الواردات</a>
-            <a href="/customs-management/create-export-invoice" class="sub-link {% if request.path.startswith('/customs-management/create-export-invoice') %}active{% endif %}">انشاء فاتورة صادر</a>
-            <a href="/customs-management/create-final-sale" class="sub-link {% if request.path.startswith('/customs-management/create-final-sale') %}active{% endif %}">انشاء فاتورة بيع نهائي</a>
-            <a href="/customs-management/create-umbrella-transfer" class="sub-link {% if request.path.startswith('/customs-management/create-umbrella-transfer') %}active{% endif %}">انشاء فاتورة تحويل مظلة</a>
-            <a href="/customs-management/create-return-export" class="sub-link {% if request.path.startswith('/customs-management/create-return-export') %}active{% endif %}">انشاء فاتورة اعادة صادر</a>
-
-        </div>
-    </div>
+    <a href="/customs-management" class="{% if request.path.startswith('/customs-management') %}active{% endif %}">
+        <i class="fas fa-shipping-fast"></i> {{ 'Customs Management' if current_language == 'en' else 'إدارة الجمارك' }}
+    </a>
     {% endif %}
 
     {% if 'admin' in user_permissions or 'department.external.view' in user_permissions %}
-    <div class="customs-accordion">
-        <button class="customs-toggle {% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}active{% endif %}" type="button" data-target="#externalPurchasesSubmenu" aria-expanded="{% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}true{% else %}false{% endif %}" onclick="toggleSidebarAccordion(this); return false;">
-            <span><i class="fas fa-truck-loading"></i> {{ 'External Purchases' if current_language == 'en' else 'إدارة المشتريات الخارجية' }}</span>
-            <i class="fas fa-chevron-down customs-arrow"></i>
-        </button>
-        <div id="externalPurchasesSubmenu" class="collapse {% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}show{% endif %}">
-            <a href="/external-purchases" class="sub-link {% if request.path == '/external-purchases' %}active{% endif %}">{{ 'External purchases dashboard' if current_language == 'en' else 'واجهة المشتريات الخارجية' }}</a>
-            <a href="/items?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/items' %}active{% endif %}">{{ 'Items' if current_language == 'en' else 'الأصناف' }}</a>
-            <a href="/categories?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/categories' %}active{% endif %}">{{ 'Categories' if current_language == 'en' else 'الفئات' }}</a>
-            <a href="/items/add/external_purchases" class="sub-link {% if request.path == '/items/add/external_purchases' %}active{% endif %}">{{ 'Add item' if current_language == 'en' else 'إضافة صنف' }}</a>
-            <a href="/stores?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/stores' %}active{% endif %}">{{ 'Warehouses' if current_language == 'en' else 'المخازن' }}</a>
-            <a href="/suppliers?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/suppliers' %}active{% endif %}">{{ 'Suppliers' if current_language == 'en' else 'الموردون' }}</a>
-            <a href="{{ url_for('add_requisition') }}?department=external_purchases" class="sub-link {% if request.path == '/requisition/add' and request.args.get('department') == 'external_purchases' %}active{% endif %}">{{ 'Submit purchase request' if current_language == 'en' else 'تقديم طلب شراء' }}</a>
-            <a href="/requisitions?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path == '/requisitions' %}active{% endif %}">{{ 'Purchase Requests' if current_language == 'en' else 'طلبات الشراء' }}</a>
-            <a href="/purchase-orders?department=external_purchases" class="sub-link {% if request.args.get('department') == 'external_purchases' and request.path.startswith('/purchase-orders') %}active{% endif %}">{{ 'Purchase Orders' if current_language == 'en' else 'أوامر الشراء' }}</a>
-        </div>
-    </div>
+    <a href="/external-purchases" class="{% if request.path.startswith('/external-purchases') or request.args.get('department') == 'external_purchases' %}active{% endif %}">
+        <i class="fas fa-truck-loading"></i> {{ 'External Purchases' if current_language == 'en' else 'إدارة المشتريات الخارجية' }}
+    </a>
     {% endif %}
 
     <div class="sidebar-group-title">{{ 'Resources & Finance' if current_language == 'en' else 'الموارد والحسابات' }}</div>

@@ -4,6 +4,38 @@
 
 {% block extra_css %}
 <style>
+    .dashboard-card {
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+    .metric-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .metric-value {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #111827;
+        line-height: 1.2;
+    }
+    .metric-note {
+        font-size: 0.82rem;
+        color: #64748b;
+        min-height: 38px;
+    }
+    .icon-wrapper {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
     .customs-header {
         display: flex;
         justify-content: space-between;
@@ -14,153 +46,119 @@
     }
     .customs-header h3 {
         margin: 0;
-        font-weight: 700;
-    }
-    .customs-actions {
-        display: flex;
-        align-items: center;
-        gap: .75rem;
-        flex-wrap: wrap;
-    }
-    .customs-actions .btn {
-        border-radius: 999px;
-        padding: .6rem 1.1rem;
-        font-weight: 600;
-    }
-    .status-pill {
-        display: inline-block;
-        padding: .45rem .8rem;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        min-width: 92px;
-        text-align: center;
-    }
-    .status-completed { background: #d1fae5; color: #065f46; }
-    .status-pending { background: #fef3c7; color: #92400e; }
-    .status-draft { background: #e2e8f0; color: #334155; }
-    .status-default { background: #dbeafe; color: #1d4ed8; }
-    .mini-date {
-        width: 140px;
-        min-width: 140px;
-        border-radius: 999px;
-        border: 1px solid #cbd5e1;
-        padding: .4rem .8rem;
-        font-size: 12px;
-    }
-    .action-stack {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        flex-wrap: wrap;
-    }
-    .action-stack form {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        margin: 0;
-    }
-    .table thead th {
-        white-space: nowrap;
-    }
-    @media (max-width: 768px) {
-        .action-stack {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .mini-date {
-            width: 120px;
-            min-width: 120px;
-        }
+        font-weight: 800;
+        color: #0f172a;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid px-4 py-4">
     <div class="customs-header">
         <div>
-            <h3><i class="fas fa-shipping-fast text-primary"></i> إدارة الجمارك</h3>
-            <small class="text-muted">إدارة الشحنات والوثائق الجمركية بشكل مرتب وسهل.</small>
+            <h3>إدارة الجمارك</h3>
         </div>
-        <div class="customs-actions">
-            <a href="/customs-management/urgent-release" class="btn btn-danger">إفراج عاجل</a>
-            <a href="/customs-management/create-export-invoice" class="btn btn-warning">التسوية بصادر</a>
-            <a href="/customs-management/new" class="btn btn-primary">إضافة وارد جديد</a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/customs-management/new" class="btn btn-primary btn-sm">إضافة وارد جديد</a>
+            <a href="/customs-management/create-export-invoice" class="btn btn-warning btn-sm">إنشاء فاتورة صادر</a>
+            <a href="/customs-management/urgent-release" class="btn btn-danger btn-sm">إفراج عاجل</a>
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div>قائمة الإجراءات الجمركية</div>
-            <div class="text-muted">عدد الإجراءات: {{ customs_items|length }}</div>
+    <div class="row g-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-primary-subtle text-primary"><i class="fas fa-boxes"></i></div>
+                    <div class="metric-title mt-3">إجمالي الواردات</div>
+                    <div class="metric-value">{{ customs_items|length }}</div>
+                    <div class="metric-note">عدد الواردات المسجلة</div>
+                    <a href="/customs-management" class="btn btn-primary mt-3">فتح</a>
+                </div>
+            </div>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-custom table-hover align-middle mb-0 text-center">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>رقم الوارد</th>
-                            <th>التاريخ</th>
-                            <th>المستورد</th>
-                            <th>نوع الوارد</th>
-                            <th>الإجمالي</th>
-                            <th>الحالة</th>
-                            <th>الإجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in customs_items %}
-                        <tr>
-                            <td>{{ item.id }}</td>
-                            <td><span class="badge bg-secondary">{{ item.declaration_no }}</span></td>
-                            <td>{{ item.declaration_date }}</td>
-                            <td>{{ item.importer_name or '-' }}</td>
-                            <td>{{ item.inbound_type or '-' }}</td>
-                            <td>{{ '%.2f' % (item.total_amount or 0) }}</td>
-                            <td>
-                                {% set status = (item.status or 'pending')|lower %}
-                                {% if status == 'completed' %}
-                                    <span class="status-pill status-completed">مكتمل</span>
-                                {% elif status == 'pending' %}
-                                    <span class="status-pill status-pending">قيد الانتظار</span>
-                                {% elif status == 'draft' %}
-                                    <span class="status-pill status-draft">مسودة</span>
-                                {% else %}
-                                    <span class="status-pill status-default">{{ item.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="action-stack">
-                                    <a href="/customs-management/view/{{ item.id }}" class="btn btn-sm btn-outline-secondary">عرض</a>
-                                    <a href="/customs-management/edit/{{ item.id }}" class="btn btn-sm btn-outline-primary">تعديل</a>
-                                    {% if item.status != 'completed' %}
-                                    <form method="post" action="/customs-management/{{ item.id }}/approve">
-                                        <input type="date" name="approval_date" class="mini-date" value="{{ item.approval_date or '' }}" title="تاريخ الاعتماد">
-                                        <button type="submit" class="btn btn-sm btn-success">اعتماد</button>
-                                    </form>
-                                    {% else %}
-                                    <span class="text-success small">{{ item.approval_date or '—' }}</span>
-                                    {% endif %}
-                                    <a href="/customs-management/view/{{ item.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة</a>
-                                    <form method="post" action="/customs-management/delete/{{ item.id }}" class="d-inline" onsubmit="return confirm('هل تريد حذف هذا الوارد؟ سيتم عكس توزيعه من الرصيد إذا كان مكتملًا.');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">حذف</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                لا توجد إجراءات جمركية حالياً.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-warning-subtle text-warning"><i class="fas fa-file-invoice"></i></div>
+                    <div class="metric-title mt-3">الفواتير</div>
+                    <div class="metric-value">{{ customs_items|length }}</div>
+                    <div class="metric-note">الفواتير والصادرات المرفوعة</div>
+                    <a href="/customs-management/create-export-invoice" class="btn btn-warning mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-success-subtle text-success"><i class="fas fa-warehouse"></i></div>
+                    <div class="metric-title mt-3">المخازن</div>
+                    <div class="metric-value">0</div>
+                    <div class="metric-note">مراكز الجرد والانتقال</div>
+                    <a href="/customs-management/inventory-branch" class="btn btn-success mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-info-subtle text-info"><i class="fas fa-truck"></i></div>
+                    <div class="metric-title mt-3">الشحنات</div>
+                    <div class="metric-value">{{ customs_items|length }}</div>
+                    <div class="metric-note">استلامات الشحنات والعمليات</div>
+                    <a href="/customs-management/free-zone/receiving-foreign-shipments" class="btn btn-info mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-secondary-subtle text-secondary"><i class="fas fa-file-signature"></i></div>
+                    <div class="metric-title mt-3">الاعتماد</div>
+                    <div class="metric-value">{{ customs_items|selectattr('status', 'equalto', 'completed')|list|length }}</div>
+                    <div class="metric-note">الطلبات المعتمدة</div>
+                    <a href="/customs-management" class="btn btn-secondary mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-dark-subtle text-dark"><i class="fas fa-clock"></i></div>
+                    <div class="metric-title mt-3">قيد الانتظار</div>
+                    <div class="metric-value">{{ customs_items|selectattr('status', 'equalto', 'pending')|list|length }}</div>
+                    <div class="metric-note">الإجراءات الحالية بحاجة لاعتماد</div>
+                    <a href="/customs-management" class="btn btn-dark mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-danger-subtle text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="metric-title mt-3">إفراج عاجل</div>
+                    <div class="metric-value">0</div>
+                    <div class="metric-note">الطلبات المعالجة في الوقت المناسب</div>
+                    <a href="/customs-management/urgent-release" class="btn btn-danger mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-success-subtle text-success"><i class="fas fa-chart-pie"></i></div>
+                    <div class="metric-title mt-3">إجمالي القيمة</div>
+                    <div class="metric-value">{{ '%.0f' % (customs_items|sum(attribute='total_amount') if customs_items else 0) }}</div>
+                    <div class="metric-note">قيمة الواردات الحالية</div>
+                    <a href="/customs-management" class="btn btn-success mt-3">فتح</a>
+                </div>
             </div>
         </div>
     </div>
