@@ -165,6 +165,7 @@
                     <tr>
                         <th>#</th>
                         <th>الصنف</th>
+                        <th>المخزن</th>
                         <th>الكمية</th>
                         <th>سعر الوحدة</th>
                         <th>الإجمالي</th>
@@ -179,6 +180,7 @@
                         <tr>
                             <td>{{ loop.index }}</td>
                             <td>{{ item.item_name }}</td>
+                            <td>{{ item.store_name or '-' }}</td>
                             <td>{{ item.qty }}</td>
                             <td>{{ item.unit_price }}</td>
                             <td>{{ item.total }}</td>
@@ -188,7 +190,7 @@
 
                     {% if not items %}
                         <tr>
-                            <td colspan="5">
+                            <td colspan="6">
                                 لا توجد أصناف
                             </td>
                         </tr>

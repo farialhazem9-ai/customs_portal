@@ -6,7 +6,9 @@
             <h3><i class="fas fa-file-invoice text-primary"></i> أوامر الشراء الصادرة</h3>
             <small>عرض احترافي لجميع أوامر الشراء مع الكمية الإجمالية والسعر.</small>
         </div>
-        <a href="/create_order{% if selected_department %}?department={{ selected_department }}{% endif %}" class="btn btn-primary btn-sm">إنشاء أمر شراء جديد</a>
+        {% if 'admin' in user_permissions or 'purchase.create' in user_permissions %}
+            <a href="/create_order{% if selected_department %}?department={{ selected_department }}{% endif %}" class="btn btn-primary btn-sm">إنشاء أمر شراء جديد</a>
+        {% endif %}
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -45,7 +47,7 @@
                     <td><span class="badge bg-secondary">{{ order.po_number }}</span></td>
                     <td>
                         {% if order.requisition_id %}
-                            <span class="badge bg-info">طلب #{{ order.requisition_id }}</span>
+                            <span class="badge bg-info">MR-{{ '%04d'|format(order.requisition_id|int) }}</span>
                         {% else %}
                             <span class="text-muted">غير مرتبط</span>
                         {% endif %}
@@ -55,8 +57,8 @@
                     <td>{{ order.total_quantity or 0 }}</td>
                     <td>{{ "%.2f"|format(order.subtotal or 0.00) }} ج.م</td>
                     <td>
-                        <span class="badge {{ 'bg-success' if order.status == 'approved' else 'bg-warning text-dark' }}">
-                            {{ order.status }}
+                        <span class="badge {{ 'bg-success' if order.status in ['approved', 'received'] else ('bg-info' if order.status == 'partially_received' else 'bg-warning text-dark') }}">
+                            {{ 'استلام جزئي' if order.status == 'partially_received' else ('مستلم' if order.status == 'received' else ('معتمد' if order.status == 'approved' else order.status)) }}
                         </span>
                     </td>
                     <td>
@@ -68,20 +70,32 @@
                                 <i class="fas fa-eye"></i>
                             </a>
 
-                            <form action="{{ url_for('delete_purchase_order', order_id=order.id) }}" method="POST" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('هل أنت متأكد من حذف هذا الأمر نهائياً؟')" title="حذف">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+                            {% if 'admin' in user_permissions or 'purchase.delete' in user_permissions %}
+                                <form action="{{ url_for('delete_purchase_order', order_id=order.id) }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('هل أنت متأكد من حذف هذا الأمر نهائياً؟')" title="حذف">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
                             
-                            {% if order.status != 'approved' %}
+                            {% if order.status == 'draft' %}
+                            {% if 'admin' in user_permissions or 'purchase.approve' in user_permissions %}
                             <form action="{{ url_for('approve_purchase_order', order_id=order.id) }}" method="POST" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('هل أنت متأكد من اعتماد هذا الطلب؟')">
                                     <i class="fas fa-check"></i> اعتماد
                                 </button>
                             </form>
+                            {% endif %}
+                            {% elif order.status in ['approved', 'partially_received'] %}
+                            {% if 'admin' in user_permissions or 'purchase.receive' in user_permissions %}
+                            <a href="{{ url_for('receive_purchase_order', order_id=order.id) }}" class="btn btn-sm btn-success">
+                                <i class="fas fa-box-open"></i> استلام
+                            </a>
+                            {% endif %}
+                            {% elif order.status == 'received' %}
+                            <span class="badge bg-info">تم الاستلام</span>
                             {% else %}
-                            <span class="badge bg-success">معتمد</span>
+                            <span class="badge bg-secondary">{{ order.status }}</span>
                             {% endif %}
                         </div>
                     </td>

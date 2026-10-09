@@ -6,6 +6,9 @@ SQL_FILES = [
     os.path.join(MIGRATION_DIR, '006_reconcile_legacy_customs_schema.sql'),
     os.path.join(MIGRATION_DIR, '007_create_audit_logs.sql'),
     os.path.join(MIGRATION_DIR, '009_customs_invoice_export_fields.sql'),
+    os.path.join(MIGRATION_DIR, '010_make_item_unit_optional.sql'),
+    os.path.join(MIGRATION_DIR, '011_add_po_requisition_id.sql'),
+    os.path.join(MIGRATION_DIR, '012_track_po_receipts.sql'),
 ]
 
 db_config = {
@@ -41,6 +44,18 @@ try:
                     break
                 if os.path.basename(sql_file).startswith('007_') and exc.errno == 1060:
                     print('Column already exists in audit_logs; continuing migration.')
+                    conn.rollback()
+                    continue
+                if os.path.basename(sql_file).startswith('009_') and exc.errno == 1060:
+                    print('Column already exists in customs_invoices; continuing migration.')
+                    conn.rollback()
+                    continue
+                if os.path.basename(sql_file).startswith('011_') and exc.errno == 1060:
+                    print('Column already exists in purchase_orders; continuing migration.')
+                    conn.rollback()
+                    continue
+                if os.path.basename(sql_file).startswith('012_') and exc.errno == 1060:
+                    print('Column already exists in purchase_order_items; continuing migration.')
                     conn.rollback()
                     continue
                 raise

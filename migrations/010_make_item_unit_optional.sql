@@ -1,0 +1,2 @@
+ALTER TABLE items
+  MODIFY COLUMN unit_id INT NULL;

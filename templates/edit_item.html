@@ -78,6 +78,11 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label class="form-label">حد إعادة الطلب</label>
+                        <input type="number" step="0.01" min="0" name="min_qty" class="form-control" value="{{ item.min_qty or 0 }}">
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label">سعر الوحدة</label>
                         <input type="number" step="0.01" id="unit_price" name="unit_price" class="form-control" value="{{ item.unit_price }}">
                     </div>

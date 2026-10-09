@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">إدارة الأرصدة والمخزون</h3>
+            <small class="text-muted">مراجعة مخزنية متكاملة مع خصم تلقائي من الأرصدة وأذونات الصرف</small>
+        </div>
+        <div class="btn-group">
+            <a href="/issue-vouchers" class="btn btn-primary">قائمة أذونات الصرف</a>
+            <a href="/issue-vouchers/add" class="btn btn-success">إنشاء إذن صرف</a>
+        </div>
+    </div>
+
+    <form method="get" action="/balance-management" class="row g-2 align-items-end mb-4">
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">من تاريخ</label>
+            <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">إلى تاريخ</label>
+            <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">التجميع</label>
+            <select name="period" class="form-select">
+                <option value="daily" {% if filters.period == 'daily' %}selected{% endif %}>يومي</option>
+                <option value="monthly" {% if filters.period == 'monthly' %}selected{% endif %}>شهري</option>
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">المخزن</label>
+            <select name="store_id" class="form-select">
+                <option value="">كل المخازن</option>
+                {% for store in stores %}
+                <option value="{{ store.id }}" {% if filters.store_id == store.id %}selected{% endif %}>{{ store.store_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">الإدارة</label>
+            <select name="department" class="form-select">
+                <option value="">كل الإدارات</option>
+                {% for row in departments %}
+                <option value="{{ row.department }}" {% if filters.department == row.department %}selected{% endif %}>{{ row.department }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">الصنف</label>
+            <select name="item_id" class="form-select">
+                <option value="">كل الأصناف</option>
+                {% for option in item_options %}
+                <option value="{{ option.id }}" {% if filters.item_id == option.id %}selected{% endif %}>{{ option.item_code }} - {{ option.item_name_ar }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-dark" type="submit"><i class="fas fa-filter"></i> تطبيق</button>
+            <a class="btn btn-outline-success" href="{{ url_for('stock_balance_export_xlsx', date_from=filters.date_from, date_to=filters.date_to, period=filters.period, store_id=filters.store_id or '', department=filters.department or '', item_id=filters.item_id or '') }}"><i class="fas fa-file-excel"></i> Excel</a>
+            <a class="btn btn-outline-danger" href="{{ url_for('stock_balance_export_pdf', date_from=filters.date_from, date_to=filters.date_to, period=filters.period, store_id=filters.store_id or '', department=filters.department or '', item_id=filters.item_id or '') }}"><i class="fas fa-file-pdf"></i> PDF</a>
+        </div>
+    </form>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="text-muted small">إجمالي الأصناف</div>
+                    <h4 class="mt-2 mb-0">{{ summary.items_count }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="text-muted small">رصيد أول المدة</div>
+                    <h4 class="mt-2 mb-0">{{ '%.2f'|format(summary.opening_balance) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="text-muted small">إجمالي الوارد / المنصرف</div>
+                    <h4 class="mt-2 mb-0">{{ '%.2f'|format(summary.quantity_in) }} / {{ '%.2f'|format(summary.quantity_out) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="text-muted small">الإقفال الدفتري / الفعلي</div>
+                    <h4 class="mt-2 mb-0">{{ '%.2f'|format(summary.closing_balance) }} / {{ '%.2f'|format(summary.actual_quantity) }}</h4>
+                    <small class="{% if summary.variance != 0 %}text-danger{% else %}text-success{% endif %}">فرق المراجعة: {{ '%.2f'|format(summary.variance) }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
+        <span><i class="fas fa-triangle-exclamation"></i> أصناف عند حد إعادة الطلب أو أقل</span>
+        <strong>{{ low_stock_items|length }}</strong>
+    </div>
+    {% if low_stock_items %}
+    <div class="table-responsive mb-4">
+        <table class="table table-sm table-bordered align-middle bg-white">
+            <thead class="table-warning"><tr><th>الصنف</th><th>المخزن</th><th>الرصيد الحالي</th><th>حد إعادة الطلب</th></tr></thead>
+            <tbody>
+                {% for item in low_stock_items %}
+                <tr><td>{{ item.item_name_ar }}</td><td>{{ item.store_name or 'غير موزع على مخزن' }}</td><td class="text-danger fw-bold">{{ item.review_quantity }}</td><td>{{ item.min_qty }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-light">
+            <strong>الأرصدة الحالية حسب المخزن والصنف</strong>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>الصنف</th>
+                            <th>الإدارة</th>
+                            <th>المخزن</th>
+                            <th>الرصيد بالمخزن</th>
+                            <th>حد إعادة الطلب</th>
+                            <th>الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.item_name_ar }}</td>
+                            <td>{{ item.department or 'عام' }}</td>
+                            <td>{{ item.store_name or 'غير موزع' }}</td>
+                            <td>{{ item.review_quantity }}</td>
+                            <td>{{ item.min_qty or 0 }}</td>
+                            <td>{% if item.min_qty and item.review_quantity <= item.min_qty %}<span class="badge bg-danger">إعادة طلب</span>{% else %}<span class="badge bg-success">طبيعي</span>{% endif %}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">لا توجد بيانات أصناف حالياً</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-light">
+            <strong>مراجعة حركة المخزون حسب الفترة</strong>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>الصنف</th>
+                            <th>الفترة</th>
+                            <th>رصيد أول المدة</th>
+                            <th>وارد</th>
+                            <th>منصرف</th>
+                            <th>رصيد الإقفال</th>
+                            <th>الرصيد الفعلي</th>
+                            <th>فرق المراجعة</th>
+                            <th>المخزن</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for movement in movements %}
+                        <tr>
+                            <td>{{ movement.item_name_ar or movement.item_id }}</td>
+                            <td>{{ movement.period }}</td>
+                            <td>{{ movement.opening_balance }}</td>
+                            <td>{{ movement.quantity_in }}</td>
+                            <td>{{ movement.quantity_out }}</td>
+                            <td>{{ movement.closing_balance }}</td>
+                            <td>{{ movement.actual_quantity if movement.actual_quantity is not none else '-' }}</td>
+                            <td class="{% if movement.variance and movement.variance != 0 %}text-danger fw-bold{% endif %}">{{ movement.variance if movement.variance is not none else '-' }}</td>
+                            <td>{{ movement.store_name or movement.store_id or 'عام' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">لا توجد حركات مخزون في الفترة المحددة</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

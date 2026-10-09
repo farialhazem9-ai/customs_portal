@@ -126,6 +126,7 @@
       .btn-export.pdf { background: #ef4444; }
       .btn-export.excel { background: #22c55e; }
       .btn-export.print { background: #2563eb; }
+      .btn-export.back { background: #475569; }
 
       .stats-grid {
         display: grid;
@@ -233,22 +234,12 @@
     <div class="report-shell">
       <div class="filter-bar">
         <div class="filter-group">
-          <label class="filter-label">الفترة من</label>
-          <input class="filter-input" type="date" value="{{ date_from.isoformat() if date_from else '' }}" id="dateFrom" />
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">الفترة إلى</label>
-          <input class="filter-input" type="date" value="{{ date_to.isoformat() if date_to else '' }}" id="dateTo" />
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">الفرع / القسم</label>
-          <select class="filter-select" id="departmentFilter">
-            <option value="">الكل</option>
-            <option value="المنطقة الحرة" {% if department == 'المنطقة الحرة' %}selected{% endif %}>المنطقة الحرة</option>
-            <option value="المخزون" {% if department == 'المخزون' %}selected{% endif %}>المخزون</option>
-            <option value="الجمارك" {% if department == 'الجمارك' %}selected{% endif %}>الجمارك</option>
+          <label class="filter-label">المخزن</label>
+          <select class="filter-select" id="storeFilter">
+            <option value="">كل المخازن</option>
+            {% for store in stores %}
+            <option value="{{ store.id }}" {% if selected_store_id == store.id %}selected{% endif %}>{{ store.store_name }}</option>
+            {% endfor %}
           </select>
         </div>
 
@@ -261,8 +252,10 @@
       <div class="toolbar">
         <h3 class="report-title">لوحة تقارير المؤسسة</h3>
         <div class="export-buttons">
-          <a class="btn-export pdf" href="#" onclick="exportReport('pdf')">📄 PDF</a>
-          <a class="btn-export excel" href="{{ url_for('enterprise_dashboard_export', department=department) }}">📊 Excel</a>
+          <a class="btn-export back" href="/dashboard">الرئيسية</a>
+          <a class="btn-export back" href="/dashboard" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+          <a class="btn-export pdf" href="{{ url_for('enterprise_dashboard_pdf_export', store_id=selected_store_id) if selected_store_id else url_for('enterprise_dashboard_pdf_export') }}">📄 PDF</a>
+          <a class="btn-export excel" href="{{ url_for('enterprise_dashboard_export', store_id=selected_store_id) if selected_store_id else url_for('enterprise_dashboard_export') }}">📊 Excel</a>
           <a class="btn-export print" href="#" onclick="window.print()">🖨️ طباعة</a>
         </div>
       </div>
@@ -330,13 +323,8 @@
     <script>
       function applyFilters() {
         const params = new URLSearchParams();
-        const from = document.getElementById('dateFrom').value;
-        const to = document.getElementById('dateTo').value;
-        const department = document.getElementById('departmentFilter').value;
-
-        if (from) params.set('date_from', from);
-        if (to) params.set('date_to', to);
-        if (department) params.set('department', department);
+        const storeId = document.getElementById('storeFilter').value;
+        if (storeId) params.set('store_id', storeId);
 
         window.location.href = '{{ url_for("enterprise_dashboard") }}?' + params.toString();
       }
@@ -345,24 +333,6 @@
         window.location.href = '{{ url_for("enterprise_dashboard") }}';
       }
 
-      function exportReport(type) {
-        const params = new URLSearchParams(window.location.search);
-        const from = params.get('date_from');
-        const to = params.get('date_to');
-        const department = params.get('department');
-
-        if (type === 'pdf') {
-          alert('تصدير PDF سيتم ربطه لاحقًا بمحرك PDF احترافي');
-          return false;
-        }
-
-        if (from) params.set('date_from', from);
-        if (to) params.set('date_to', to);
-        if (department) params.set('department', department);
-
-        window.location.href = '{{ url_for("enterprise_dashboard_export") }}?' + params.toString();
-        return false;
-      }
     </script>
   </body>
 </html>

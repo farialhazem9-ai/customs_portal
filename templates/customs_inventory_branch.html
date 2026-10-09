@@ -28,11 +28,47 @@
         <a href="/customs-management" class="btn btn-secondary btn-sm">العودة</a>
     </div>
 
-    <div class="d-flex justify-content-end mb-3">
-        <a href="/customs-management/inventory-branch/movements" class="btn btn-primary btn-sm">{{ 'Inventory movements' if current_language == 'en' else 'حركات المخزون' }}</a>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-primary-subtle text-primary"><i class="fas fa-boxes"></i></div>
+                    <div class="metric-title mt-3">الأصناف</div>
+                    <div class="metric-value">{{ items|length }}</div>
+                    <div class="metric-note">أرصدة البنود الحالية</div>
+                    <a href="#inventory-items" class="btn btn-primary mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-warning-subtle text-warning"><i class="fas fa-exchange-alt"></i></div>
+                    <div class="metric-title mt-3">حركات المخزون</div>
+                    <div class="metric-value">{{ movements_count or 0 }}</div>
+                    <div class="metric-note">متابعة حركات الأصناف والمخزون</div>
+                    <a href="/customs-management/inventory-branch/movements" class="btn btn-warning mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+
+        {% for branch in inventory_branches if not selected_store_id or branch.id == selected_store_id %}
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="icon-wrapper bg-success-subtle text-success"><i class="fas fa-warehouse"></i></div>
+                    <div class="metric-title mt-3">{{ branch.store_name }}</div>
+                    <div class="metric-value">{{ branch.item_count or 0 }}</div>
+                    <div class="metric-note">إجمالي الكميات: {{ branch.total_quantity or 0 }}</div>
+                    <a href="/customs-management/inventory-branch?store_id={{ branch.id }}" class="btn btn-success mt-3">فتح</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0" id="inventory-items">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>أرصدة البنود الحالية</div>
             <div class="text-muted">العدد: {{ items|length }}</div>
@@ -46,11 +82,11 @@
                             <th>الكود</th>
                             <th>اسم الصنف</th>
                             <th>الفئة</th>
-                            <th>الوحدة</th>
+                            <th>رقم أمر الشراء</th>
                             <th>الرصيد الحالي</th>
                             <th>الكمية</th>
                             <th>الحد الأدنى</th>
-                            <th>السعر</th>
+                            <th>سعر الشراء</th>
                             <th>الحالة</th>
                         </tr>
                     </thead>
@@ -61,11 +97,11 @@
                             <td>{{ item.item_code or '-' }}</td>
                             <td>{{ item.item_name_ar or item.item_name_en or '-' }}</td>
                             <td>{{ item.category_name_ar or item.category_name_en or '-' }}</td>
-                            <td>{{ item.unit_name or '-' }}</td>
+                            <td>{{ item.po_number or '-' }}</td>
                             <td>{{ item.current_stock if item.current_stock is not none else 0 }}</td>
                             <td>{{ item.qty if item.qty is not none else 0 }}</td>
                             <td>{{ item.min_qty if item.min_qty is not none else 0 }}</td>
-                            <td>{{ '%.2f' % (item.price or 0) }}</td>
+                            <td>{{ '%.2f' % item.purchase_unit_price if item.purchase_unit_price is not none else '-' }}</td>
                             <td>
                                 {% set qty = item.current_stock if item.current_stock is not none else 0 %}
                                 {% if qty <= (item.min_qty or 0) %}

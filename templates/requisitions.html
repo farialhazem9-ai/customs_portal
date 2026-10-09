@@ -9,7 +9,9 @@
         </div>
         <div class="d-flex gap-2">
             <input type="search" id="requisitionSearch" class="form-control form-control-sm" placeholder="بحث في الطلبات...">
+            {% if 'admin' in user_permissions or 'purchase.create' in user_permissions %}
             <a href="/requisition/add{% if selected_department %}?department={{ selected_department }}{% endif %}" class="btn btn-primary btn-sm">إضافة طلب جديد</a>
+            {% endif %}
         </div>
     </div>
 
@@ -52,36 +54,61 @@
                     <td>
                         <div class="btn-group" role="group">
                             {% if req.status == 'pending' %}
+                                {% if 'admin' in user_permissions or 'purchase.create' in user_permissions %}
                                 <a href="/add-quotation/{{ req.id }}" class="btn btn-sm btn-info text-white" title="إضافة عرض سعر">
                                     <i class="fas fa-tags"></i>
                                 </a>
+                                {% endif %}
+                                <a href="/requisition/quotations/{{ req.id }}" class="btn btn-sm btn-primary" title="مقارنة عروض الأسعار واختيار عرض">
+                                    <i class="fas fa-list-check"></i>
+                                </a>
                                 
-                                <form action="/requisition/approve/{{ req.id }}" method="POST" style="display:inline;">
-                                    <button type="submit" class="btn btn-sm btn-success" title="اعتماد" onclick="return confirm('هل أنت متأكد من اعتماد هذا الطلب؟')">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
-                                
+                                {% if 'admin' in user_permissions or 'purchase.approve' in user_permissions %}
                                 <form action="/requisition/reject/{{ req.id }}" method="POST" style="display:inline;">
                                     <button type="submit" class="btn btn-sm btn-danger" title="رفض" onclick="return confirm('هل أنت متأكد من رفض هذا الطلب؟')">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </form>
+                                {% endif %}
                             {% elif req.status == 'approved' %}
-                                <a href="/create_order?requisition_id={{ req.id }}&item_id={{ req.item_name_ar }}&qty={{ req.quantity }}" class="btn btn-sm btn-primary" title="إنشاء أمر شراء">
-                                    <i class="fas fa-file-invoice"></i> أمر شراء
+                                {% if req.purchase_order_id %}
+                                    {% if req.purchase_order_status == 'received' %}
+                                        <a href="{{ url_for('view_purchase_order', order_id=req.purchase_order_id) }}" class="btn btn-sm btn-primary" title="متابعة أمر الشراء {{ req.po_number }}">
+                                            <i class="fas fa-file-invoice"></i> {{ req.po_number }}
+                                        </a>
+                                    {% else %}
+                                        {% if 'admin' in user_permissions or 'purchase.receive' in user_permissions %}
+                                        <a href="{{ url_for('receive_purchase_order', order_id=req.purchase_order_id) }}" class="btn btn-sm btn-success" title="استكمال الطلب وتسجيل الكمية المستلمة">
+                                            <i class="fas fa-box-open"></i> استكمال طلب الشراء
+                                        </a>
+                                        {% endif %}
+                                    {% endif %}
+                                {% else %}
+                                    <a href="/requisition/quotations/{{ req.id }}" class="btn btn-sm btn-primary" title="استكمال إصدار أمر الشراء من عرض السعر">
+                                        <i class="fas fa-file-invoice"></i> استكمال الأمر
+                                    </a>
+                                {% endif %}
+                                <a href="/requisition/quotations/{{ req.id }}" class="btn btn-sm btn-info text-white" title="عرض الأسعار والاختيار المعتمد">
+                                    <i class="fas fa-tags"></i>
+                                </a>
+                            {% else %}
+                                <a href="/requisition/quotations/{{ req.id }}" class="btn btn-sm btn-info text-white" title="عرض الأسعار">
+                                    <i class="fas fa-tags"></i>
                                 </a>
                             {% endif %}
                             
-                            <a href="/requisition/edit/{{ req.id }}" class="btn btn-sm btn-warning" title="تعديل">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            
-                            <form action="/requisition/delete/{{ req.id }}" method="POST" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-danger" title="حذف" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+                            {% if 'admin' in user_permissions or 'purchase.edit' in user_permissions %}
+                                <a href="/requisition/edit/{{ req.id }}" class="btn btn-sm btn-warning" title="تعديل">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            {% endif %}
+                            {% if 'admin' in user_permissions or 'purchase.delete' in user_permissions %}
+                                <form action="/requisition/delete/{{ req.id }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="حذف" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

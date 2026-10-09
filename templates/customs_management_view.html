@@ -137,7 +137,15 @@
 
     <div class="d-flex gap-2">
         <a href="/customs-management" class="btn btn-secondary">عودة</a>
-        <a href="/customs-management/edit/{{ customs_item.id }}" class="btn btn-primary">تعديل السجل</a>
+        {% if 'admin' in user_permissions or 'customs.edit' in user_permissions %}
+            <a href="/customs-management/edit/{{ customs_item.id }}" class="btn btn-primary">تعديل السجل</a>
+        {% endif %}
+        {% if 'admin' in user_permissions or 'customs.delete' in user_permissions %}
+            <form method="POST" action="/customs-management/delete/{{ customs_item.id }}" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوارد؟');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">حذف السجل</button>
+            </form>
+        {% endif %}
         <a href="/customs-management/view/{{ customs_item.id }}/print" target="_blank" class="btn btn-outline-secondary">طباعة</a>
     </div>
 </div>

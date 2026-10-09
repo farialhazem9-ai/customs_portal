@@ -23,10 +23,14 @@
                 <div class="col-md-3 mt-2"><strong>رقم الصادر:</strong> {{ invoice.export_no or '-' }}</div>
             </div>
             <div class="mb-3">
+                {% if 'admin' in user_permissions or 'customs.edit' in user_permissions %}
                 <a href="/customs-management/invoice/{{ invoice.id }}/edit" class="btn btn-sm btn-primary">تعديل</a>
+                {% endif %}
+                {% if 'admin' in user_permissions or 'customs.delete' in user_permissions %}
                 <form method="post" action="/customs-management/invoice/{{ invoice.id }}/delete" style="display:inline-block;" onsubmit="return confirm('هل أنت متأكد من حذف الفاتورة؟');">
                     <button class="btn btn-sm btn-danger">حذف</button>
                 </form>
+                {% endif %}
                 <button class="btn btn-sm btn-outline-secondary" onclick="window.print();">طباعة / PDF</button>
                 <a href="/customs-management/invoice/{{ invoice.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة (نموذج)</a>
             </div>

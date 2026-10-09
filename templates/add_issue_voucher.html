@@ -23,7 +23,10 @@
                         <label>رقم الإذن</label>
                         <input type="text"
                                name="voucher_no"
+                               id="voucherNo"
                                class="form-control"
+                               value="{{ voucher_no_preview }}"
+                               readonly
                                required>
                     </div>
 
@@ -31,15 +34,21 @@
                         <label>التاريخ</label>
                         <input type="date"
                                name="issue_date"
+                               id="issueDate"
                                class="form-control"
+                               value="{{ default_issue_date }}"
                                required>
                     </div>
 
                     <div class="col-md-3">
                         <label>القسم</label>
-                        <input type="text"
-                               name="department"
-                               class="form-control">
+                        <select name="department" id="departmentSelect" class="form-select" required>
+                            {% for department in departments %}
+                            <option value="{{ department.department }}" {% if department.department == selected_department %}selected{% endif %}>
+                                {{ department.department }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
 
                     <div class="col-md-3">
@@ -66,6 +75,8 @@
                     <thead class="table-light">
                         <tr>
                             <th>الصنف</th>
+                            <th>المخزن</th>
+                            <th>الرصيد المتاح</th>
                             <th>الكمية</th>
                             <th>سعر الوحدة</th>
                             <th>الإجمالي</th>
@@ -79,16 +90,30 @@
 
                             <td>
                                 <select name="item_id[]"
-                                        class="form-control"
+                                        class="form-control item-selector"
                                         required>
-
+                                    <option value="">اختر الصنف</option>
                                     {% for item in items %}
-                                    <option value="{{ item.id }}">
-                                        {{ item.item_name_ar }}
+                                    <option value="{{ item.id }}"
+                                            data-department="{{ item.department }}"
+                                            data-store-id="{{ item.store_id }}"
+                                            data-store-name="{{ item.store_name }}"
+                                            data-stock="{{ item.store_quantity }}"
+                                            data-last-purchase-price="{{ item.last_purchase_price }}">
+                                        {{ item.item_code }} - {{ item.item_name_ar }} | {{ item.store_name }} | المتاح {{ item.store_quantity }} | آخر شراء {{ item.last_purchase_price }}
                                     </option>
                                     {% endfor %}
 
                                 </select>
+                            </td>
+
+                            <td>
+                                <input type="hidden" name="store_id[]" class="item-store-id">
+                                <input type="text" class="form-control item-store-name" readonly>
+                            </td>
+
+                            <td>
+                                <input type="text" class="form-control item-stock" readonly>
                             </td>
 
                             <td>
@@ -186,9 +211,59 @@ function addRow() {
           .forEach(input => {
               input.value = "";
           });
+    newRow.querySelector(".item-selector").selectedIndex = 0;
 
     table.appendChild(newRow);
+    filterRowItems(newRow);
 }
+
+function filterRowItems(row) {
+    const department = document.getElementById("departmentSelect").value;
+    const select = row.querySelector('select[name="item_id[]"]');
+    Array.from(select.options).forEach(option => {
+        option.hidden = !option.value
+            ? false
+            : option.dataset.department !== department;
+    });
+    if (select.selectedOptions.length && select.selectedOptions[0].hidden) {
+        select.selectedIndex = 0;
+        row.querySelector(".item-store-id").value = "";
+        row.querySelector(".item-store-name").value = "";
+        row.querySelector(".item-stock").value = "";
+        row.querySelector(".qty").value = "";
+        row.querySelector(".price").value = "";
+        row.querySelector(".total").value = "";
+    }
+}
+
+document.addEventListener("change", function (event) {
+    const select = event.target;
+    if (!select.classList.contains("item-selector")) return;
+    const option = select.selectedOptions[0];
+    if (!option || !option.value) return;
+    const row = select.closest("tr");
+    row.querySelector(".item-store-id").value = option.dataset.storeId;
+    row.querySelector(".item-store-name").value = option.dataset.storeName;
+    row.querySelector(".item-stock").value = option.dataset.stock;
+    const priceInput = row.querySelector(".price");
+    priceInput.value = option.dataset.lastPurchasePrice || "0";
+    calculateTotals();
+});
+
+document.getElementById("departmentSelect").addEventListener("change", function () {
+    document.querySelectorAll("#itemsTable tbody tr").forEach(filterRowItems);
+    calculateTotals();
+});
+
+document.getElementById("issueDate").addEventListener("change", async function () {
+    const response = await fetch(`/issue-vouchers/next-number?date=${encodeURIComponent(this.value)}`);
+    if (response.ok) {
+        const result = await response.json();
+        document.getElementById("voucherNo").value = result.voucher_no;
+    }
+});
+
+document.querySelectorAll("#itemsTable tbody tr").forEach(filterRowItems);
 
 function removeRow(btn) {
 

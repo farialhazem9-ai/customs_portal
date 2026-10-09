@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div>
+            <h3 class="mb-1"><i class="fas fa-tags text-primary"></i> مقارنة عروض الأسعار</h3>
+            <div class="text-muted">الطلب #{{ requisition.id }} | {{ requisition.item_name_ar }} | الكمية: {{ requisition.quantity }}</div>
+        </div>
+        {% if 'admin' in user_permissions or 'purchase.create' in user_permissions %}
+            <a href="/add-quotation/{{ requisition.id }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> إضافة عرض سعر
+            </a>
+        {% endif %}
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover text-center align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>اختيار</th>
+                        <th>المورد</th>
+                        <th>السعر</th>
+                        <th>الصلاحية</th>
+                        <th>ملاحظات</th>
+                        <th>الحالة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for quote in quotations %}
+                    <tr class="{% if quote.status == 'accepted' %}table-success{% endif %}">
+                        <td>
+                            <input class="form-check-input" type="radio" name="quote_id" value="{{ quote.id }}" {% if quote.status == 'accepted' %}checked{% elif loop.first %}checked{% endif %} {% if requisition.status not in ['pending', 'approved'] or purchase_order %}disabled{% endif %} aria-label="اختيار عرض {{ quote.supplier_name }}">
+                        </td>
+                        <td>{{ quote.supplier_name }}</td>
+                        <td class="fw-bold">{{ "%.2f"|format(quote.price) }} ج.م</td>
+                        <td>{{ quote.valid_until or '-' }}</td>
+                        <td>{{ quote.notes or '-' }}</td>
+                        <td>
+                            {% if quote.status == 'accepted' %}
+                                <span class="badge bg-success">معتمد</span>
+                            {% else %}
+                                <span class="badge bg-secondary">متاح</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="py-4 text-muted">لا توجد عروض أسعار لهذا الطلب. أضف عرضًا للبدء في المقارنة.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <a href="/requisitions" class="btn btn-outline-secondary">العودة للطلبات</a>
+            {% if purchase_order %}
+                {% if purchase_order.status == 'received' %}
+                    <a href="{{ url_for('view_purchase_order', order_id=purchase_order.id) }}" class="btn btn-primary">
+                        <i class="fas fa-file-invoice"></i> متابعة أمر الشراء {{ purchase_order.po_number }}
+                    </a>
+                {% elif 'admin' in user_permissions or 'purchase.receive' in user_permissions %}
+                    <a href="{{ url_for('receive_purchase_order', order_id=purchase_order.id) }}" class="btn btn-success">
+                        <i class="fas fa-box-open"></i> استكمال طلب الشراء وتحديث الرصيد
+                    </a>
+                {% endif %}
+            {% elif requisition.status == 'pending' and ('admin' in user_permissions or 'purchase.approve' in user_permissions) %}
+                <button type="submit" class="btn btn-success" {% if not quotations %}disabled{% endif %}>
+                    <i class="fas fa-check"></i> اعتماد العرض وإنشاء أمر الشراء
+                </button>
+            {% elif requisition.status == 'approved' and not purchase_order and accepted_quote and ('admin' in user_permissions or 'purchase.create' in user_permissions) %}
+                <input type="hidden" name="action" value="create_order">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-file-invoice"></i> إنشاء الأمر من العرض المعتمد
+                </button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

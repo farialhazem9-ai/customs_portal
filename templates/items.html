@@ -6,11 +6,9 @@
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h3>📦 {{ 'إدارة المشتريات المحلية' if (request.args.get('department') or 'local_purchases') == 'local_purchases' else 'إدارة المشتريات الخارجية' }}</h3>
             <div class="d-flex gap-2 align-items-center">
-                <select class="form-select form-select-sm w-auto" onchange="location.href='/items?department=' + this.value">
-                    <option value="local_purchases" {% if (request.args.get('department') or 'local_purchases') == 'local_purchases' %}selected{% endif %}>المشتريات المحلية</option>
-                    <option value="external_purchases" {% if (request.args.get('department') or 'local_purchases') == 'external_purchases' %}selected{% endif %}>المشتريات الخارجية</option>
-                </select>
+                {% if 'admin' in user_permissions or 'inventory.create' in user_permissions %}
                 <a href="/items/add/{{ request.args.get('department') or 'local_purchases' }}" class="btn btn-light">➕ إضافة صنف</a>
+                {% endif %}
             </div>
         </div>
 
@@ -48,14 +46,14 @@
                             <td>
                                 <div class="btn-group" role="group">
                                     <a href="/stock/card/{{ item.id }}" class="btn btn-info btn-sm">📑 كرت</a>
-                                    
+                                    {% if 'admin' in user_permissions or 'inventory.edit' in user_permissions %}
                                     <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#balanceModal{{ item.id }}">
                                         ➕ رصيد
                                     </button>
-
                                     <a href="/items/edit/{{ item.id }}" class="btn btn-warning btn-sm">✏️ تعديل</a>
+                                    {% endif %}
 
-                                    {% if 'admin' in user_permissions %}
+                                    {% if 'admin' in user_permissions or 'inventory.delete' in user_permissions %}
                                         <form action="{{ url_for('delete_item', id=item.id) }}" method="POST" style="display:inline;">
                                             <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('هل أنت متأكد من حذف هذا الصنف نهائياً؟')">
                                                 🗑 حذف
@@ -66,6 +64,7 @@
                             </td>
                         </tr>
 
+                        {% if 'admin' in user_permissions or 'inventory.edit' in user_permissions %}
                         <div class="modal fade" id="balanceModal{{ item.id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
@@ -89,6 +88,7 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>

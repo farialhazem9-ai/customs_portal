@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="{{ current_language or 'ar' }}" dir="{{ 'ltr' if current_language == 'en' else 'rtl' }}">
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page { size: A4 landscape; margin: 12mm; }
+        body { font-family: Tahoma, sans-serif; color: #17202a; font-size: 10px; }
+        h1 { color: #176b68; font-size: 20px; margin: 0 0 8px; }
+        .meta { margin-bottom: 14px; color: #52616b; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #9aa6ac; padding: 5px 6px; text-align: right; }
+        th { background: #176b68; color: #fff; }
+        tr:nth-child(even) { background: #f2f6f5; }
+        .number { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; }
+    </style>
+    <script>
+        window.addEventListener("load", function () { window.print(); });
+    </script>
+</head>
+<body>
+    <h1>تقرير مراجعة أرصدة المخزون</h1>
+    <div class="meta">
+        الفترة: {{ filters.date_from }} إلى {{ filters.date_to }} |
+        التجميع: {{ 'شهري' if filters.period == 'monthly' else 'يومي' }}
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>الفترة</th><th>كود الصنف</th><th>الصنف</th><th>الإدارة</th><th>المخزن</th>
+                <th>أول المدة</th><th>وارد</th><th>منصرف</th><th>الإقفال الدفتري</th><th>الفعلي الحالي</th><th>الفرق</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for movement in movements %}
+            <tr>
+                <td>{{ movement.period }}</td><td>{{ movement.item_code }}</td><td>{{ movement.item_name_ar }}</td>
+                <td>{{ movement.department or '' }}</td><td>{{ movement.store_name or '' }}</td>
+                <td class="number">{{ '%.2f'|format(movement.opening_balance) }}</td>
+                <td class="number">{{ '%.2f'|format(movement.quantity_in) }}</td>
+                <td class="number">{{ '%.2f'|format(movement.quantity_out) }}</td>
+                <td class="number">{{ '%.2f'|format(movement.closing_balance) }}</td>
+                <td class="number">{{ '%.2f'|format(movement.actual_quantity) if movement.actual_quantity is not none else '' }}</td>
+                <td class="number">{{ '%.2f'|format(movement.variance) if movement.variance is not none else '' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11">لا توجد حركات في الفترة المحددة.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

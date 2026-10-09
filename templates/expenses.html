@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}إدارة المصروفات{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h3>إدارة المصروفات</h3>
+    <small>نظام عالمي لقيود المصروفات وربطها بالأرصدة والحسابات</small>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card dashboard-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="metric-title">إجمالي المصروفات</span>
+                    <span class="badge bg-danger"><i class="fas fa-arrow-down"></i></span>
+                </div>
+                <div class="metric-value text-danger">{{ '%.2f'|format(total_expenses or 0) }}</div>
+                <div class="metric-note">مجموع القيم المسجلة في النظام</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card dashboard-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="metric-title">إجمالي أرصدة الحسابات</span>
+                    <span class="badge bg-success"><i class="fas fa-wallet"></i></span>
+                </div>
+                <div class="metric-value text-success">{{ '%.2f'|format(total_accounts_balance or 0) }}</div>
+                <div class="metric-note">رصيد الحسابات المسجلة بعد المصروفات</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card dashboard-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="metric-title">إجمالي نفقات المخازن</span>
+                    <span class="badge bg-primary"><i class="fas fa-warehouse"></i></span>
+                </div>
+                <div class="metric-value text-primary">{{ '%.2f'|format(total_warehouse_expense or 0) }}</div>
+                <div class="metric-note">إجمالي المصروفات المرتبطة بالمخازن والواردات</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white">إضافة مصروف جديد مرتبط بالمخازن والواردات</div>
+    <div class="card-body">
+        <form method="post" action="/expenses">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">الحساب</label>
+                    <select class="form-select" name="account_id" required>
+                        <option value="">اختر الحساب</option>
+                        {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.account_name }} ({{ account.account_code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">المخزن / الفرع</label>
+                    <select class="form-select" name="store_id">
+                        <option value="">بدون مخزن</option>
+                        {% for store in stores %}
+                            <option value="{{ store.id }}">{{ store.store_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">الإدارة</label>
+                    <select class="form-select" name="department">
+                        <option value="">غير محدد</option>
+                        <option value="external_purchases">المشتريات الخارجية</option>
+                        <option value="local_purchases">المشتريات المحلية</option>
+                        <option value="customs">الجمارك</option>
+                        <option value="warehouses">المخازن</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">نوع الوارد</label>
+                    <select class="form-select" name="inbound_type">
+                        <option value="">غير محدد</option>
+                        <option value="external">وارد خارجي</option>
+                        <option value="local_market">وارد سوق محلي</option>
+                        <option value="within_zone">وارد داخل المنطقة</option>
+                        <option value="between_regions">وارد بين المناطق</option>
+                        <option value="stopped_entry">وارد دخول موقوفات</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">الفئة</label>
+                    <select class="form-select" name="category_id">
+                        <option value="">بدون فئة</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.category_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">المبلغ</label>
+                    <input type="number" step="0.01" min="0.01" class="form-control" name="amount" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">التاريخ</label>
+                    <input type="date" class="form-control" name="expense_date" value="{{ expense_date or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">طريقة الدفع</label>
+                    <select class="form-select" name="payment_method">
+                        <option value="cash">نقدي</option>
+                        <option value="bank_transfer">حوالة بنكية</option>
+                        <option value="card">بطاقة</option>
+                        <option value="check">شيك</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">رقم المرجع</label>
+                    <input type="text" class="form-control" name="reference_no" placeholder="EXP-20261009-001">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">الوصف</label>
+                    <input type="text" class="form-control" name="description" placeholder="وصف المصروف أو البند">
+                </div>
+                <div class="col-12 text-end">
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> حفظ المصروف</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white">ملخص المصروفات حسب المخزن والوارد</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>المخزن</th>
+                        <th>إجمالي المصروفات</th>
+                        <th>عدد المصروفات</th>
+                        <th>وارد خارجي</th>
+                        <th>وارد محلي</th>
+                        <th>داخل المنطقة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if warehouse_summary %}
+                        {% for row in warehouse_summary %}
+                        <tr>
+                            <td>{{ row.store_name or 'غير محدد' }}</td>
+                            <td class="text-danger fw-bold">{{ '%.2f'|format(row.total_store_expense or 0) }}</td>
+                            <td>{{ row.expense_count or 0 }}</td>
+                            <td>{{ '%.2f'|format(row.external_expense or 0) }}</td>
+                            <td>{{ '%.2f'|format(row.local_market_expense or 0) }}</td>
+                            <td>{{ '%.2f'|format(row.within_zone_expense or 0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">لا توجد بيانات مخازن مرتبطة بعد.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span>سجل المصروفات</span>
+        <span class="badge bg-secondary">{{ expenses|length }} عنصر</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>المرجع</th>
+                        <th>التاريخ</th>
+                        <th>الحساب</th>
+                        <th>المخزن/الفرع</th>
+                        <th>نوع الوارد</th>
+                        <th>الإدارة</th>
+                        <th>الفئة</th>
+                        <th>المبلغ</th>
+                        <th>الوصف</th>
+                        <th>الإجراء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if expenses %}
+                        {% for expense in expenses %}
+                        <tr>
+                            <td>{{ expense.reference_no or 'غير محدد' }}</td>
+                            <td>{{ expense.expense_date }}</td>
+                            <td>{{ expense.account_name or 'غير محدد' }}</td>
+                            <td>{{ expense.store_name or 'بدون مخزن' }}</td>
+                            <td>{{ expense.inbound_type or 'غير محدد' }}</td>
+                            <td>{{ expense.department or 'غير محدد' }}</td>
+                            <td>{{ expense.category_name or 'عام' }}</td>
+                            <td class="text-danger fw-bold">{{ '%.2f'|format(expense.amount or 0) }}</td>
+                            <td>{{ expense.description or '-' }}</td>
+                            <td>
+                                <form method="post" action="/expenses/delete/{{ expense.id }}" onsubmit="return confirm('هل تريد حذف هذا المصروف وعكس أثره من الرصيد؟')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">حذف</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">لا توجد مصروفات مسجلة حتى الآن.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

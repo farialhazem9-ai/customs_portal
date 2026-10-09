@@ -40,11 +40,15 @@
                             <td>{{ '%.2f' % (inv.total_amount or 0) }}</td>
                             <td>
                                 <a href="/customs-management/invoice/{{ inv.id }}" class="btn btn-sm btn-outline-secondary">عرض</a>
+                                {% if 'admin' in user_permissions or 'customs.edit' in user_permissions %}
                                 <a href="/customs-management/invoice/{{ inv.id }}/edit" class="btn btn-sm btn-outline-primary">تعديل</a>
+                                {% endif %}
                                 <a href="/customs-management/invoice/{{ inv.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">طباعة</a>
+                                {% if 'admin' in user_permissions or 'customs.delete' in user_permissions %}
                                 <form method="post" action="/customs-management/invoice/{{ inv.id }}/delete" style="display:inline-block;" onsubmit="return confirm('هل أنت متأكد من حذف الفاتورة؟');">
                                     <button class="btn btn-sm btn-outline-danger">حذف</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% else %}

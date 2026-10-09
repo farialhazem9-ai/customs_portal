@@ -3,7 +3,7 @@ import csv
 import io
 import secrets
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, session, flash, Blueprint, jsonify, make_response
+from flask import Flask, render_template, request, redirect, session, flash, Blueprint, jsonify, make_response, send_file
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError, generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -47,19 +47,13 @@ TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 app = Flask(__name__, template_folder=TEMPLATE_DIR)
 app.secret_key = os.environ.get('APP_SECRET_KEY') or secrets.token_hex(32)
 
-# Flask-WTF / CSRF configuration (professional defaults)
 app.config.setdefault('WTF_CSRF_TIME_LIMIT', None)
 app.config.setdefault('WTF_CSRF_ENABLED', True)
-
-# Session cookie security settings
 app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
 app.config.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
-# In production, ensure SESSION_COOKIE_SECURE=True (requires HTTPS)
 app.config.setdefault('SESSION_COOKIE_SECURE', not app.debug)
 
 csrf = CSRFProtect(app)
-
-# Expose csrf_token() in Jinja templates (generate_csrf is a callable)
 app.jinja_env.globals['csrf_token'] = generate_csrf
 
 db_config = {
@@ -85,6 +79,23 @@ def get_db_connection():
     except Exception as e:
         print(f"DB Connection Error: {e}")
         raise
+
+
+def next_purchase_order_number(cur, order_date=None):
+    period = str(order_date)[:7].replace('-', '') if order_date else datetime.now().strftime('%Y%m')
+    prefix = f"PO-{period}-"
+    cur.execute(
+        "SELECT po_number FROM purchase_orders WHERE po_number LIKE %s FOR UPDATE",
+        (f"{prefix}%",)
+    )
+    existing_orders = cur.fetchall() or []
+    sequences = []
+    for row in existing_orders:
+        number = row.get('po_number') if isinstance(row, dict) else row[0]
+        suffix = str(number)[len(prefix):]
+        if suffix.isdigit():
+            sequences.append(int(suffix))
+    return f"{prefix}{max(sequences, default=0) + 1}"
 
 
 def ensure_customs_invoice_extra_columns():
@@ -625,6 +636,446 @@ def ensure_item_current_balance_column():
         pass
 
 
+def validate_expense_amount(value):
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        raise ValueError("قيمة المصروف يجب أن تكون رقمًا صحيحًا.")
+    if amount <= 0:
+        raise ValueError("قيمة المصروف يجب أن تكون أكبر من صفر.")
+    return amount
+
+
+def calculate_expense_balance_delta(amount, direction='expense'):
+    direction = (direction or 'expense').lower()
+    value = float(amount or 0)
+    if direction in ('expense', 'debit', 'withdrawal'):
+        return -abs(value)
+    if direction in ('reversal', 'credit', 'refund', 'increase'):
+        return abs(value)
+    return 0.0
+
+
+def calculate_stock_balance_delta(quantity, movement_type='issue'):
+    movement_type = (movement_type or 'issue').lower()
+    value = float(quantity or 0)
+
+    positive_types = {
+        'opening_balance', 'purchase', 'purchase_order', 'receipt', 'receiving',
+        'transfer_in', 'adjustment_plus', 'maintenance_return', 'return', 'reversal',
+        'in', 'credit', 'add', 'stock_in'
+    }
+    negative_types = {
+        'issue', 'out', 'withdrawal', 'transfer_out', 'adjustment_minus',
+        'maintenance_issue', 'issue_voucher', 'stock_out', 'debit', 'sale'
+    }
+
+    if movement_type in positive_types:
+        return abs(value)
+    if movement_type in negative_types:
+        return -abs(value)
+    return 0.0
+
+
+def calculate_stock_period_closing(opening_balance, quantity_in, quantity_out):
+    return float(opening_balance or 0) + float(quantity_in or 0) - float(quantity_out or 0)
+
+
+def is_stock_below_reorder_level(quantity, minimum_quantity):
+    threshold = float(minimum_quantity or 0)
+    return threshold > 0 and float(quantity or 0) <= threshold
+
+
+def build_stock_review_summary(rows):
+    total_stock = 0.0
+    total_balance = 0.0
+    item_count = 0
+
+    for row in rows or []:
+        item_count += 1
+        total_stock += float(row.get('current_stock') or row.get('quantity') or 0)
+        total_balance += float(row.get('current_balance') or row.get('balance') or 0)
+
+    return {
+        'items_count': item_count,
+        'total_stock': total_stock,
+        'total_balance': total_balance,
+        'net_change': total_balance - total_stock,
+    }
+
+
+def ensure_issue_voucher_schema():
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM issue_vouchers")
+        existing_columns = {row[0].lower() for row in cur.fetchall()}
+
+        for column_name, ddl in (
+            ('status', 'ALTER TABLE issue_vouchers ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT "approved" AFTER created_by'),
+            ('approved_at', 'ALTER TABLE issue_vouchers ADD COLUMN approved_at TIMESTAMP NULL AFTER status'),
+            ('store_id', 'ALTER TABLE issue_vouchers ADD COLUMN store_id INT NULL AFTER approved_at'),
+        ):
+            if column_name not in existing_columns:
+                cur.execute(ddl)
+                existing_columns.add(column_name)
+
+        cur.execute("SHOW COLUMNS FROM issue_voucher_items")
+        issue_item_columns = {row[0].lower() for row in cur.fetchall()}
+        if "store_id" not in issue_item_columns:
+            cur.execute("ALTER TABLE issue_voucher_items ADD COLUMN store_id INT NULL AFTER item_id")
+        cur.execute("SHOW INDEX FROM issue_voucher_items")
+        issue_item_indexes = {row[2].lower() for row in cur.fetchall()}
+        if "idx_issue_voucher_items_store" not in issue_item_indexes:
+            cur.execute("ALTER TABLE issue_voucher_items ADD INDEX idx_issue_voucher_items_store (store_id)")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS issue_voucher_sequences (
+                issue_date DATE NOT NULL,
+                sequence_value INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (issue_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+
+        conn.commit()
+    except Exception as exc:
+        print(f"Database warning/error: {exc}")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+def format_issue_voucher_number(issue_date, sequence):
+    if isinstance(issue_date, str):
+        issue_date = datetime.strptime(issue_date, "%Y-%m-%d").date()
+    return f"IV-{issue_date:%Y%m%d}-{int(sequence):05d}"
+
+
+def get_issue_voucher_number_preview(cur, issue_date):
+    parsed_date = datetime.strptime(str(issue_date), "%Y-%m-%d").date()
+    cur.execute(
+        "SELECT sequence_value FROM issue_voucher_sequences WHERE issue_date=%s",
+        (parsed_date,),
+    )
+    row = cur.fetchone()
+    next_value = int(row.get("sequence_value") or 0) + 1 if row else 1
+    return format_issue_voucher_number(parsed_date, next_value)
+
+
+def get_item_stock_movements(limit=25):
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute('SHOW TABLES LIKE %s', ('item_movements',))
+        if cur.fetchone():
+            cur.execute(
+                """
+                SELECT im.*, i.item_name_ar, s.store_name
+                FROM item_movements im
+                LEFT JOIN items i ON i.id = im.item_id
+                LEFT JOIN stores s ON s.id = im.store_id
+                ORDER BY im.created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return cur.fetchall() or []
+
+        cur.execute(
+            """
+            SELECT * FROM items
+            ORDER BY item_name_ar
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        return cur.fetchall() or []
+    finally:
+        cur.close()
+        conn.close()
+
+
+def load_stock_reconciliation_rows(cur, date_from, date_to, period, item_id=None, store_id=None, department=None):
+    filters = ["DATE(im.created_at) >= %s", "DATE(im.created_at) <= %s"]
+    params = [date_from, date_to]
+    if item_id:
+        filters.append("im.item_id = %s")
+        params.append(item_id)
+    if store_id:
+        filters.append("im.store_id = %s")
+        params.append(store_id)
+    if department:
+        filters.append("i.department = %s")
+        params.append(department)
+
+    period_expression = "DATE_FORMAT(im.created_at, '%Y-%m')" if period == 'monthly' else "DATE(im.created_at)"
+    incoming_types = "'opening_balance','purchase','transfer_in','adjustment_plus','maintenance_return'"
+    outgoing_types = "'issue','transfer_out','adjustment_minus','maintenance_issue'"
+    where_clause = " AND ".join(filters)
+
+    cur.execute(
+        f"""
+        SELECT im.item_id, i.item_code, i.item_name_ar, i.department,
+               im.store_id, s.store_name, {period_expression} AS period,
+               SUM(CASE WHEN im.movement_type IN ({incoming_types}) THEN im.quantity ELSE 0 END) AS quantity_in,
+               SUM(CASE WHEN im.movement_type IN ({outgoing_types}) THEN im.quantity ELSE 0 END) AS quantity_out,
+               MAX(COALESCE(si.quantity, 0)) AS actual_quantity
+        FROM item_movements im
+        JOIN items i ON i.id = im.item_id
+        LEFT JOIN stores s ON s.id = im.store_id
+        LEFT JOIN store_items si ON si.store_id = im.store_id AND si.item_id = im.item_id
+        WHERE {where_clause}
+        GROUP BY im.item_id, i.item_code, i.item_name_ar, i.department,
+                 im.store_id, s.store_name, period
+        ORDER BY im.item_id, im.store_id, period
+        """,
+        tuple(params),
+    )
+    grouped_rows = cur.fetchall() or []
+
+    opening_filters = []
+    opening_params = [date_from]
+    if item_id:
+        opening_filters.append("im.item_id = %s")
+        opening_params.append(item_id)
+    if store_id:
+        opening_filters.append("im.store_id = %s")
+        opening_params.append(store_id)
+    if department:
+        opening_filters.append("i.department = %s")
+        opening_params.append(department)
+    opening_where = " AND ".join(["im.created_at < %s"] + opening_filters)
+
+    cur.execute(
+        f"""
+        SELECT im.item_id, im.store_id,
+               SUM(CASE WHEN im.movement_type IN ({incoming_types}) THEN im.quantity
+                        WHEN im.movement_type IN ({outgoing_types}) THEN -im.quantity ELSE 0 END) AS opening_balance
+        FROM item_movements im
+        JOIN items i ON i.id = im.item_id
+        WHERE {opening_where}
+        GROUP BY im.item_id, im.store_id
+        """,
+        tuple(opening_params),
+    )
+    opening_balances = {
+        (row['item_id'], row['store_id']): float(row['opening_balance'] or 0)
+        for row in (cur.fetchall() or [])
+    }
+
+    current_filters = []
+    current_params = []
+    if item_id:
+        current_filters.append("si.item_id = %s")
+        current_params.append(item_id)
+    if store_id:
+        current_filters.append("si.store_id = %s")
+        current_params.append(store_id)
+    if department:
+        current_filters.append("i.department = %s")
+        current_params.append(department)
+    current_where = "WHERE " + " AND ".join(current_filters) if current_filters else ""
+    cur.execute(
+        f"""
+        SELECT si.item_id, si.store_id, si.quantity
+        FROM store_items si
+        JOIN items i ON i.id = si.item_id
+        {current_where}
+        """,
+        tuple(current_params),
+    )
+    actual_balances = {
+        (row['item_id'], row['store_id']): float(row['quantity'] or 0)
+        for row in (cur.fetchall() or [])
+    }
+
+    running_balances = dict(opening_balances)
+    final_row_indexes = {}
+    report_rows = []
+    for row in grouped_rows:
+        key = (row['item_id'], row['store_id'])
+        opening = running_balances.get(key, 0.0)
+        quantity_in = float(row['quantity_in'] or 0)
+        quantity_out = float(row['quantity_out'] or 0)
+        closing = calculate_stock_period_closing(opening, quantity_in, quantity_out)
+        row.update({
+            'opening_balance': opening,
+            'quantity_in': quantity_in,
+            'quantity_out': quantity_out,
+            'closing_balance': closing,
+            'actual_quantity': None,
+            'variance': None,
+        })
+        running_balances[key] = closing
+        final_row_indexes[key] = len(report_rows)
+        report_rows.append(row)
+
+    for key, index in final_row_indexes.items():
+        actual = actual_balances.get(key, 0.0)
+        report_rows[index]['actual_quantity'] = actual
+        report_rows[index]['variance'] = actual - report_rows[index]['closing_balance']
+
+    return report_rows
+
+
+def parse_stock_report_filters(args):
+    today = datetime.now().date()
+    first_of_month = today.replace(day=1)
+    try:
+        date_from = datetime.strptime(args.get('date_from', ''), '%Y-%m-%d').date() if args.get('date_from') else first_of_month
+    except ValueError:
+        date_from = first_of_month
+    try:
+        date_to = datetime.strptime(args.get('date_to', ''), '%Y-%m-%d').date() if args.get('date_to') else today
+    except ValueError:
+        date_to = today
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    return {
+        'date_from': date_from,
+        'date_to': date_to,
+        'period': 'monthly' if args.get('period') == 'monthly' else 'daily',
+        'item_id': args.get('item_id', type=int) or None,
+        'store_id': args.get('store_id', type=int) or None,
+        'department': (args.get('department') or '').strip() or None,
+    }
+
+
+def ensure_expense_accounting_schema():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS expense_accounts (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    account_code VARCHAR(50) NOT NULL,
+                    account_name VARCHAR(255) NOT NULL,
+                    account_type ENUM('cash', 'bank', 'petty_cash', 'credit', 'other') NOT NULL DEFAULT 'cash',
+                    current_balance DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+                    store_id INT NULL,
+                    department VARCHAR(100) NULL,
+                    inbound_type VARCHAR(50) NULL,
+                    notes TEXT NULL,
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    UNIQUE KEY uq_expense_account_code (account_code)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS expense_categories (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    category_name VARCHAR(255) NOT NULL,
+                    category_code VARCHAR(50) NULL,
+                    parent_id INT NULL,
+                    notes TEXT NULL,
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_expense_categories_parent (parent_id),
+                    UNIQUE KEY uq_expense_category_code (category_code),
+                    CONSTRAINT fk_expense_category_parent FOREIGN KEY (parent_id) REFERENCES expense_categories (id) ON DELETE SET NULL ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    account_id INT NOT NULL,
+                    category_id INT NULL,
+                    store_id INT NULL,
+                    department VARCHAR(100) NULL,
+                    inbound_type VARCHAR(50) NULL,
+                    expense_date DATE NOT NULL,
+                    amount DECIMAL(15,2) NOT NULL,
+                    reference_no VARCHAR(100) NULL,
+                    description TEXT NULL,
+                    payment_method ENUM('cash', 'bank_transfer', 'card', 'check', 'other') NOT NULL DEFAULT 'cash',
+                    status ENUM('pending', 'approved', 'reversed') NOT NULL DEFAULT 'approved',
+                    created_by INT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_expenses_account (account_id),
+                    KEY idx_expenses_category (category_id),
+                    KEY idx_expenses_store (store_id),
+                    KEY idx_expenses_date (expense_date),
+                    CONSTRAINT fk_expenses_account FOREIGN KEY (account_id) REFERENCES expense_accounts (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+                    CONSTRAINT fk_expenses_category FOREIGN KEY (category_id) REFERENCES expense_categories (id) ON DELETE SET NULL ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS expense_account_transactions (
+                    id BIGINT NOT NULL AUTO_INCREMENT,
+                    account_id INT NOT NULL,
+                    related_expense_id INT NULL,
+                    transaction_type ENUM('opening_balance', 'expense', 'reversal', 'adjustment') NOT NULL,
+                    amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+                    note TEXT NULL,
+                    created_by INT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_expense_account_txn_account (account_id),
+                    KEY idx_expense_account_txn_expense (related_expense_id),
+                    CONSTRAINT fk_expense_txn_account FOREIGN KEY (account_id) REFERENCES expense_accounts (id) ON DELETE CASCADE ON UPDATE CASCADE,
+                    CONSTRAINT fk_expense_txn_expense FOREIGN KEY (related_expense_id) REFERENCES expenses (id) ON DELETE SET NULL ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+
+            for column_name, ddl in (
+                ('store_id', 'ALTER TABLE expense_accounts ADD COLUMN store_id INT NULL AFTER current_balance'),
+                ('department', 'ALTER TABLE expense_accounts ADD COLUMN department VARCHAR(100) NULL AFTER store_id'),
+                ('inbound_type', 'ALTER TABLE expense_accounts ADD COLUMN inbound_type VARCHAR(50) NULL AFTER department'),
+            ):
+                if not has_column('expense_accounts', column_name):
+                    cur.execute(ddl)
+
+            for column_name, ddl in (
+                ('store_id', 'ALTER TABLE expenses ADD COLUMN store_id INT NULL AFTER category_id'),
+                ('department', 'ALTER TABLE expenses ADD COLUMN department VARCHAR(100) NULL AFTER store_id'),
+                ('inbound_type', 'ALTER TABLE expenses ADD COLUMN inbound_type VARCHAR(50) NULL AFTER department'),
+            ):
+                if not has_column('expenses', column_name):
+                    cur.execute(ddl)
+
+            cur.execute("SELECT id FROM expense_accounts WHERE account_code=%s LIMIT 1", ('CASH-001',))
+            if cur.fetchone() is None:
+                cur.execute(
+                    "INSERT INTO expense_accounts (account_code, account_name, account_type, current_balance, notes) VALUES (%s, %s, %s, %s, %s)",
+                    ('CASH-001', 'الصندوق الرئيسي', 'cash', 0.00, 'الحساب الافتراضي لإدارة المصروفات')
+                )
+
+            cur.execute("SELECT id FROM expense_categories WHERE category_code=%s LIMIT 1", ('GEN-001',))
+            if cur.fetchone() is None:
+                cur.execute(
+                    "INSERT INTO expense_categories (category_name, category_code, notes) VALUES (%s, %s, %s)",
+                    ('مصروفات عامة', 'GEN-001', 'فئة افتراضية للإدارة العامة')
+                )
+
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as exc:
+        print(f"Expense accounting schema warning: {exc}")
+        pass
+
+
+
 def ensure_companies_table():
     try:
         conn = get_db_connection()
@@ -743,6 +1194,42 @@ def ensure_department_permissions():
         pass
 
 
+def ensure_record_permissions():
+    permissions = (
+        ('purchase.view', 'View Purchase Orders', 'Purchase'),
+        ('purchase.create', 'Create Purchase Orders', 'Purchase'),
+        ('purchase.edit', 'Edit Purchase Orders', 'Purchase'),
+        ('purchase.delete', 'Delete Purchase Orders', 'Purchase'),
+        ('purchase.approve', 'Approve Purchase Orders', 'Purchase'),
+        ('purchase.receive', 'Receive Purchase Orders', 'Purchase'),
+        ('customs.view', 'View Customs Records', 'Customs'),
+        ('customs.create', 'Create Customs Records', 'Customs'),
+        ('customs.edit', 'Edit Customs Records', 'Customs'),
+        ('customs.delete', 'Delete Customs Records', 'Customs'),
+        ('customs.approve', 'Approve Customs Records', 'Customs'),
+    )
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            for permission_key, permission_name, module_name in permissions:
+                cur.execute(
+                    "SELECT id FROM permissions WHERE permission_key=%s LIMIT 1",
+                    (permission_key,)
+                )
+                if not cur.fetchone():
+                    cur.execute(
+                        "INSERT INTO permissions (permission_key, permission_name, module_name) VALUES (%s,%s,%s)",
+                        (permission_key, permission_name, module_name)
+                    )
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as exc:
+        print(f"Permission setup warning: {exc}")
+
+
 try:
     ensure_database_ready()
 except Exception as exc:
@@ -754,6 +1241,8 @@ ensure_suppliers_table()
 ensure_companies_table()
 ensure_issue_voucher_reference_column()
 ensure_department_permissions()
+ensure_record_permissions()
+ensure_expense_accounting_schema()
 
 
 def ensure_audit_logs_table():
@@ -833,7 +1322,7 @@ def inject_user_data():
             conn = get_db_connection()
             cur = conn.cursor(dictionary=True)
             cur.execute("""
-                SELECT id, item_name_ar, current_stock
+                SELECT id, item_name_ar, item_name_en, item_code, current_stock
                 FROM items
                 WHERE current_stock IS NOT NULL AND current_stock < 5
                 ORDER BY current_stock ASC
@@ -959,10 +1448,53 @@ def enforce_permission_checks():
         required_permission = 'stores.edit'
     elif path.startswith('/stores/delete/'):
         required_permission = 'stores.delete'
+    elif path.startswith('/purchase-orders/delete/') or path.startswith('/requisition/delete/'):
+        required_permission = 'purchase.delete'
+    elif path.startswith('/purchase-orders/approve/') or path.startswith('/requisition/approve/') or path.startswith('/requisition/reject/'):
+        required_permission = 'purchase.approve'
+    elif path.startswith('/purchase-orders/receive/') or path.startswith('/requisition/complete/'):
+        required_permission = 'purchase.receive'
+    elif path.startswith('/purchase-orders/details/') and request.method == 'POST':
+        required_permission = 'purchase.edit'
+    elif path.startswith('/requisition/edit/'):
+        required_permission = 'purchase.edit' if request.method == 'POST' else 'purchase.view'
+    elif path.startswith('/requisition/quotations/'):
+        if request.method == 'GET':
+            required_permission = 'purchase.view'
+        else:
+            required_permission = 'purchase.create' if request.form.get('action') == 'create_order' else 'purchase.approve'
+    elif path.startswith('/add-quotation/'):
+        required_permission = 'purchase.create'
+    elif path == '/requisition/add':
+        required_permission = 'purchase.create'
+    elif path.startswith('/requisitions'):
+        required_permission = 'purchase.view'
+    elif path == '/save_purchase_order':
+        required_permission = 'purchase.create'
+    elif path.startswith('/purchase-orders/add'):
+        required_permission = 'purchase.create'
+    elif path.startswith('/quotation/order/'):
+        required_permission = 'purchase.create'
+    elif path == '/create_order':
+        required_permission = 'purchase.create'
     elif path.startswith('/purchase-orders') or path.startswith('/create_order'):
         required_permission = 'purchase.view' if request.method == 'GET' else 'purchase.create'
-    elif path.startswith('/requisition/') or path.startswith('/requisitions'):
-        required_permission = 'purchase.view' if request.method == 'GET' else 'purchase.create'
+    elif path.startswith('/customs-management/invoice/') and path.endswith('/edit'):
+        required_permission = 'customs.edit'
+    elif path.startswith('/customs-management/invoice/') and path.endswith('/delete'):
+        required_permission = 'customs.delete'
+    elif path.startswith('/customs-management/') and path.endswith('/approve'):
+        required_permission = 'customs.approve'
+    elif path.startswith('/customs-management/delete/'):
+        required_permission = 'customs.delete'
+    elif path.startswith('/customs-management/edit/'):
+        required_permission = 'customs.edit'
+    elif path == '/customs-management/new' or path.startswith('/customs-management/create-') or path == '/customs-management/demo-seed':
+        required_permission = 'customs.create'
+    elif path == '/customs-management/urgent-release':
+        required_permission = 'customs.create' if request.method == 'POST' else 'customs.view'
+    elif path.startswith('/customs-management') and request.method == 'POST':
+        required_permission = 'customs.create'
     elif path.startswith('/customs-management'):
         required_permission = 'customs.view'
     elif path.startswith('/issue'):
@@ -1607,7 +2139,91 @@ def local_purchases_management():
 def external_purchases_management():
     if "user" not in session:
         return redirect("/")
-    return render_template("external_purchases_management.html")
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM items i
+                 WHERE i.department='external_purchases') AS items_count,
+                (SELECT COUNT(DISTINCT i.category_id) FROM items i
+                 WHERE i.department='external_purchases' AND i.category_id IS NOT NULL) AS categories_count,
+                (SELECT COUNT(DISTINCT s.id)
+                 FROM stores s
+                 JOIN store_items si ON si.store_id=s.id
+                 JOIN items i ON i.id=si.item_id
+                 WHERE s.is_active=1 AND i.department='external_purchases') AS stores_count,
+                (SELECT COUNT(*) FROM suppliers) AS suppliers_count,
+                (SELECT COUNT(*)
+                 FROM purchase_requisitions pr
+                 JOIN items i ON i.id=pr.item_id
+                 WHERE i.department='external_purchases') AS requisitions_count,
+                (SELECT COUNT(*) FROM purchase_orders po
+                 WHERE EXISTS (
+                     SELECT 1 FROM purchase_order_items poi
+                     JOIN items i ON i.id=poi.item_id
+                     WHERE poi.purchase_order_id=po.id
+                       AND i.department='external_purchases'
+                 )) AS purchase_orders_count,
+                (SELECT COUNT(DISTINCT pr.id)
+                 FROM purchase_requisitions pr
+                 JOIN items i ON i.id=pr.item_id
+                 WHERE pr.`user`=%s AND i.department='external_purchases') AS my_requisitions_count,
+                (SELECT COUNT(DISTINCT pr.id)
+                 FROM purchase_requisitions pr
+                 JOIN items i ON i.id=pr.item_id
+                 WHERE pr.`user`=%s AND pr.status='approved'
+                   AND i.department='external_purchases') AS my_approved_requisitions_count,
+                (SELECT COUNT(DISTINCT pr.id)
+                 FROM purchase_requisitions pr
+                 JOIN items i ON i.id=pr.item_id
+                 JOIN purchase_orders po ON po.requisition_id=pr.id
+                 WHERE pr.`user`=%s AND po.status='received'
+                   AND i.department='external_purchases') AS my_completed_requisitions_count
+        """, (session["user"], session["user"], session["user"]))
+        counts = cur.fetchone() or {}
+
+        cur.execute("""
+            SELECT DISTINCT pr.id, pr.status
+            FROM purchase_requisitions pr
+            JOIN items i ON i.id=pr.item_id
+            WHERE i.department='external_purchases'
+            ORDER BY pr.id DESC
+        """)
+        report_requisitions = cur.fetchall() or []
+
+        cur.execute("""
+            SELECT DISTINCT po.id, po.po_number, po.status
+            FROM purchase_orders po
+            JOIN purchase_order_items poi ON poi.purchase_order_id=po.id
+            JOIN items i ON i.id=poi.item_id
+            WHERE i.department='external_purchases'
+            ORDER BY po.id DESC
+        """)
+        report_purchase_orders = cur.fetchall() or []
+
+        cur.execute("""
+            SELECT DISTINCT po.id, po.po_number, po.status
+            FROM purchase_orders po
+            JOIN purchase_order_items poi ON poi.purchase_order_id=po.id
+            JOIN items i ON i.id=poi.item_id
+            WHERE i.department='external_purchases'
+              AND po.status IN ('partially_received', 'received')
+            ORDER BY po.id DESC
+        """)
+        report_receipts = cur.fetchall() or []
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "external_purchases_management.html",
+        **counts,
+        report_requisitions=report_requisitions,
+        report_purchase_orders=report_purchase_orders,
+        report_receipts=report_receipts
+    )
 
 
 @app.route("/department-balances")
@@ -1642,13 +2258,6 @@ def department_balances():
 
     departments = [
         {
-            'key': 'local_purchases',
-            'label': 'المشتريات المحلية',
-            'items_count': department_summary.get('local_purchases', {}).get('items_count', 0),
-            'total_stock': department_summary.get('local_purchases', {}).get('total_stock', 0),
-            'total_balance': department_summary.get('local_purchases', {}).get('total_balance', 0),
-        },
-        {
             'key': 'external_purchases',
             'label': 'المشتريات الخارجية',
             'items_count': department_summary.get('external_purchases', {}).get('items_count', 0),
@@ -1668,7 +2277,10 @@ def department_balances():
         FROM items
         ORDER BY department, item_name_ar
     """)
-    items = cur.fetchall() or []
+    items = [
+        row for row in (cur.fetchall() or [])
+        if normalize_department_key(row.get('department')) != 'local_purchases'
+    ]
 
     cur.close()
     conn.close()
@@ -1679,6 +2291,212 @@ def department_balances():
         items=items,
         user=session['user']
     )
+
+
+@app.route('/expenses', methods=['GET', 'POST'])
+def expenses_page():
+    if 'user' not in session:
+        return redirect('/')
+
+    ensure_expense_accounting_schema()
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        try:
+            amount = validate_expense_amount(request.form.get('amount'))
+            account_id = request.form.get('account_id')
+            category_id = request.form.get('category_id') or None
+            description = (request.form.get('description') or '').strip()
+            expense_date = request.form.get('expense_date') or datetime.now().strftime('%Y-%m-%d')
+            reference_no = (request.form.get('reference_no') or '').strip() or f"EXP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            payment_method = request.form.get('payment_method') or 'cash'
+            store_id = request.form.get('store_id') or None
+            department = request.form.get('department') or None
+            inbound_type = request.form.get('inbound_type') or None
+
+            if not account_id:
+                raise ValueError('يجب اختيار الحساب المحاسب له المصروف.')
+
+            cur.execute('SELECT id, current_balance FROM expense_accounts WHERE id=%s LIMIT 1', (account_id,))
+            account_row = cur.fetchone()
+            if not account_row:
+                raise ValueError('الحساب المختار غير موجود.')
+
+            cur.execute(
+                """
+                INSERT INTO expenses
+                    (account_id, category_id, store_id, department, inbound_type, expense_date, amount, reference_no, description, payment_method, status, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    account_id,
+                    category_id,
+                    store_id,
+                    department,
+                    inbound_type,
+                    expense_date,
+                    amount,
+                    reference_no,
+                    description or 'مصروف عام',
+                    payment_method,
+                    'approved',
+                    get_current_user_id(conn) or 0,
+                )
+            )
+            expense_id = cur.lastrowid
+            delta = calculate_expense_balance_delta(amount, 'expense')
+            cur.execute(
+                "UPDATE expense_accounts SET current_balance = current_balance + %s, store_id = COALESCE(%s, store_id), department = COALESCE(%s, department), inbound_type = COALESCE(%s, inbound_type) WHERE id=%s",
+                (delta, store_id, department, inbound_type, account_id)
+            )
+            cur.execute(
+                """
+                INSERT INTO expense_account_transactions
+                    (account_id, related_expense_id, transaction_type, amount, note, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    account_id,
+                    expense_id,
+                    'expense',
+                    amount,
+                    description or 'مصروف جديد',
+                    get_current_user_id(conn) or 0,
+                )
+            )
+            conn.commit()
+            flash('تم تسجيل المصروف بنجاح وربطه برصيد الحساب والمخزن/الوارد.', 'success')
+            return redirect('/expenses')
+        except Exception as exc:
+            conn.rollback()
+            flash(str(exc), 'danger')
+
+    cur.execute("SELECT id, store_name FROM stores ORDER BY store_name")
+    stores = cur.fetchall() or []
+
+    cur.execute(
+        """
+        SELECT ea.id, ea.account_code, ea.account_name, ea.account_type, ea.current_balance, ea.department, ea.inbound_type,
+               s.store_name,
+               COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.account_id = ea.id), 0) AS total_expenses
+        FROM expense_accounts ea
+        LEFT JOIN stores s ON s.id = ea.store_id
+        WHERE ea.is_active = 1
+        ORDER BY ea.account_name
+        """
+    )
+    accounts = cur.fetchall() or []
+
+    cur.execute(
+        """
+        SELECT ec.id, ec.category_name, ec.category_code,
+               COUNT(e.id) AS usage_count
+        FROM expense_categories ec
+        LEFT JOIN expenses e ON e.category_id = ec.id
+        WHERE ec.is_active = 1
+        GROUP BY ec.id, ec.category_name, ec.category_code
+        ORDER BY ec.category_name
+        """
+    )
+    categories = cur.fetchall() or []
+
+    cur.execute(
+        """
+        SELECT e.id, e.reference_no, e.expense_date, e.amount, e.description, e.payment_method, e.status,
+               e.department, e.inbound_type,
+               ea.account_name, ec.category_name, s.store_name
+        FROM expenses e
+        LEFT JOIN expense_accounts ea ON ea.id = e.account_id
+        LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        LEFT JOIN stores s ON s.id = e.store_id
+        ORDER BY e.expense_date DESC, e.id DESC
+        LIMIT 200
+        """
+    )
+    expenses = cur.fetchall() or []
+
+    cur.execute(
+        """
+        SELECT s.id, s.store_name,
+               COALESCE(SUM(e.amount), 0) AS total_store_expense,
+               COUNT(e.id) AS expense_count,
+               COALESCE(SUM(CASE WHEN e.inbound_type = 'external' THEN e.amount ELSE 0 END), 0) AS external_expense,
+               COALESCE(SUM(CASE WHEN e.inbound_type = 'local_market' THEN e.amount ELSE 0 END), 0) AS local_market_expense,
+               COALESCE(SUM(CASE WHEN e.inbound_type = 'within_zone' THEN e.amount ELSE 0 END), 0) AS within_zone_expense
+        FROM stores s
+        LEFT JOIN expenses e ON e.store_id = s.id
+        GROUP BY s.id, s.store_name
+        ORDER BY s.store_name
+        """
+    )
+    warehouse_summary = cur.fetchall() or []
+
+    total_expenses = sum(float(row.get('amount') or 0) for row in expenses)
+    total_accounts_balance = sum(float(row.get('current_balance') or 0) for row in accounts)
+    total_warehouse_expense = sum(float(row.get('total_store_expense') or 0) for row in warehouse_summary)
+
+    cur.close()
+    conn.close()
+
+    return render_template(
+        'expenses.html',
+        accounts=accounts,
+        categories=categories,
+        stores=stores,
+        expenses=expenses,
+        warehouse_summary=warehouse_summary,
+        total_expenses=total_expenses,
+        total_accounts_balance=total_accounts_balance,
+        total_warehouse_expense=total_warehouse_expense,
+        user=session['user']
+    )
+
+
+@app.route('/expenses/delete/<int:expense_id>', methods=['POST'])
+def delete_expense(expense_id):
+    if 'user' not in session:
+        return redirect('/')
+
+    ensure_expense_accounting_schema()
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute(
+            "SELECT account_id, amount, reference_no FROM expenses WHERE id=%s LIMIT 1",
+            (expense_id,)
+        )
+        expense = cur.fetchone()
+        if not expense:
+            flash('المصروف غير موجود.', 'warning')
+            return redirect('/expenses')
+
+        cur.execute(
+            "UPDATE expense_accounts SET current_balance = current_balance + %s WHERE id=%s",
+            (abs(float(expense['amount'] or 0)), expense['account_id'])
+        )
+        cur.execute(
+            "INSERT INTO expense_account_transactions (account_id, related_expense_id, transaction_type, amount, note, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                expense['account_id'],
+                expense_id,
+                'reversal',
+                float(expense['amount'] or 0),
+                f"إلغاء المصروف {expense.get('reference_no') or expense_id}",
+                get_current_user_id(conn) or 0,
+            )
+        )
+        cur.execute('DELETE FROM expenses WHERE id=%s', (expense_id,))
+        conn.commit()
+        flash('تم حذف المصروف وعكس أثره من رصيد الحساب.', 'success')
+    except Exception as exc:
+        conn.rollback()
+        flash(str(exc), 'danger')
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect('/expenses')
 
 
 @app.route("/stock/card/<int:item_id>")
@@ -1788,6 +2606,25 @@ def stock_in():
     cur = conn.cursor(dictionary=True)
 
     if request.method == "POST":
+        if request.form.get("action") == "update_order":
+            vendor_id = request.form.get("vendor_id", type=int)
+            order_date = request.form.get("order_date") or None
+            expected_delivery_date = request.form.get("expected_delivery_date") or None
+            notes = request.form.get("notes", "").strip() or None
+            if not vendor_id or not order_date:
+                flash("اختر المورد وتاريخ أمر الشراء", "danger")
+                return redirect(url_for("view_purchase_order", order_id=order_id))
+
+            cur.execute("""
+                UPDATE purchase_orders
+                SET vendor_id=%s, order_date=%s, expected_delivery_date=%s, notes=%s
+                WHERE id=%s
+            """, (vendor_id, order_date, expected_delivery_date, notes, order_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+            flash("تم تحديث بيانات أمر الشراء", "success")
+            return redirect(url_for("view_purchase_order", order_id=order_id))
 
         item_id = request.form["item_id"]
         warehouse_id = request.form["warehouse_id"]
@@ -1896,34 +2733,47 @@ def add_item_for_department(department):
         """)
         categories = cur.fetchall()
 
-        # تحميل الوحدات
         cur.execute("""
-            SELECT id, unit_name
-            FROM units
-            ORDER BY unit_name
+            SELECT s.id, s.store_name, COUNT(DISTINCT si.item_id) AS item_count
+            FROM stores s
+            LEFT JOIN store_items si ON si.store_id=s.id
+            WHERE s.is_active=1
+            GROUP BY s.id, s.store_name
+            ORDER BY s.store_name
         """)
-        units = cur.fetchall()
+        stores = cur.fetchall()
 
         if request.method == "POST":
 
             item_code = request.form["item_code"].strip()
             item_name_ar = request.form["item_name_ar"].strip()
 
-            item_type = request.form.get("item_type", "")
+            item_type = ""
             receipt_no = request.form.get("receipt_no", "")
             po_number = request.form.get("po_number", "")
             department = selected_department
+            store_id = request.form.get("store_id", type=int)
 
             qty = float(request.form.get("qty", 0) or 0)
             unit_price = float(request.form.get("unit_price", 0) or 0)
             price = float(request.form.get("price", 0) or 0)
             weight = float(request.form.get("weight", 0) or 0)
             shipping_cost = float(request.form.get("shipping_cost", 0) or 0)
+            min_qty = float(request.form.get("min_qty", 0) or 0)
+            if min_qty < 0:
+                raise ValueError("حد إعادة الطلب لا يمكن أن يكون سالبًا.")
 
             total_cost = (qty * unit_price) + shipping_cost
 
             category_id = request.form["category_id"]
-            unit_id = request.form["unit_id"]
+            unit_id = request.form.get("unit_id") or None
+
+            if not store_id:
+                return "يرجى اختيار المخزن"
+
+            cur.execute("SELECT id FROM stores WHERE id=%s AND is_active=1", (store_id,))
+            if not cur.fetchone():
+                return "المخزن المختار غير موجود أو غير نشط"
 
             cur.execute(
                 "SELECT id FROM items WHERE item_code=%s",
@@ -1951,11 +2801,12 @@ def add_item_for_department(department):
                     price,
                     weight,
                     shipping_cost,
-                    total_cost
+                    total_cost,
+                    min_qty
                 )
                 VALUES
                 (
-                    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
                 )
             """, (
                 category_id,
@@ -1971,8 +2822,20 @@ def add_item_for_department(department):
                 price,
                 weight,
                 shipping_cost,
-                total_cost
+                total_cost,
+                min_qty
             ))
+
+            item_id = cur.lastrowid
+            cur.execute("""
+                INSERT INTO store_items (store_id, item_id, quantity, average_cost, last_movement_date)
+                VALUES (%s,%s,%s,%s,NOW())
+            """, (store_id, item_id, qty, unit_price))
+            cur.execute("""
+                UPDATE items
+                SET current_stock=%s, current_balance=%s
+                WHERE id=%s
+            """, (qty, qty, item_id))
 
             conn.commit()
 
@@ -1995,7 +2858,7 @@ def add_item_for_department(department):
     return render_template(
         "add_item.html",
         categories=categories,
-        units=units,
+        stores=stores,
         user=session["user"],
         selected_department=selected_department
     )
@@ -2165,6 +3028,10 @@ def edit_item(item_id):
         price = float(request.form.get("price", 0))
         weight = float(request.form.get("weight", 0))
         shipping_cost = float(request.form.get("shipping_cost", 0))
+        min_qty = float(request.form.get("min_qty", 0) or 0)
+        if min_qty < 0:
+            flash("حد إعادة الطلب لا يمكن أن يكون سالبًا.", "danger")
+            return redirect(f"/items/edit/{item_id}")
 
         category_id = request.form["category_id"]
         unit_id = request.form["unit_id"]
@@ -2187,7 +3054,8 @@ def edit_item(item_id):
                 price=%s,
                 weight=%s,
                 shipping_cost=%s,
-                total_cost=%s
+                total_cost=%s,
+                min_qty=%s
             WHERE id=%s
         """, (
             category_id,
@@ -2204,6 +3072,7 @@ def edit_item(item_id):
             weight,
             shipping_cost,
             total_cost,
+            min_qty,
             item_id
         ))
 
@@ -2299,6 +3168,8 @@ def add_issue(department=None):
 
     if "user" not in session:
         return redirect("/")
+
+    return create_issue_voucher()
 
     conn = mysql.connector.connect(**db_config)
     cur = conn.cursor(dictionary=True)
@@ -2671,40 +3542,21 @@ def enterprise_dashboard():
         flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
         return redirect('/dashboard')
 
-    today = datetime.utcnow().date()
-    default_start = today - timedelta(days=30)
-
-    try:
-        date_from = datetime.strptime(request.args.get('date_from', ''), '%Y-%m-%d').date() if request.args.get('date_from') else default_start
-    except ValueError:
-        date_from = default_start
-
-    try:
-        date_to = datetime.strptime(request.args.get('date_to', ''), '%Y-%m-%d').date() if request.args.get('date_to') else today
-    except ValueError:
-        date_to = today
-
-    if date_from > date_to:
-        date_from, date_to = date_to, date_from
-
-    department = (request.args.get('department') or '').strip()
+    store_id = request.args.get('store_id', type=int)
 
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
         query = """
-            SELECT item_name_ar AS item_name, store_name, quantity,
-                   ROUND(COALESCE(unit_price, 0), 2) AS unit_price,
-                   ROUND(COALESCE(quantity, 0) * COALESCE(unit_price, 0), 2) AS total_value
-            FROM vw_current_stock
-            WHERE 1=1
+            SELECT i.item_name_ar AS item_name, s.store_name, si.quantity,
+                   ROUND(COALESCE(si.average_cost, 0), 2) AS unit_price,
+                   ROUND(COALESCE(si.quantity, 0) * COALESCE(si.average_cost, 0), 2) AS total_value
+            FROM store_items si
+            JOIN items i ON i.id=si.item_id
+            JOIN stores s ON s.id=si.store_id
+            WHERE (%s IS NULL OR si.store_id=%s)
         """
-        params = []
-
-        if department:
-            query += " AND LOWER(store_name) LIKE LOWER(%s) "
-            params.append(f"%{department}%")
-
+        params = [store_id, store_id]
         query += " ORDER BY total_value DESC LIMIT 50"
         cur.execute(query, tuple(params))
         rows = cur.fetchall()
@@ -2712,6 +3564,8 @@ def enterprise_dashboard():
         total_quantity = sum(float(r.get('quantity') or 0) for r in rows)
         total_value = sum(float(r.get('total_value') or 0) for r in rows)
         total_items = len(rows)
+        cur.execute("SELECT id, store_name FROM stores WHERE is_active=1 ORDER BY store_name")
+        stores = cur.fetchall() or []
     finally:
         cur.close()
         conn.close()
@@ -2719,9 +3573,8 @@ def enterprise_dashboard():
     return render_template(
         'enterprise_reports.html',
         report_rows=rows,
-        date_from=date_from,
-        date_to=date_to,
-        department=department,
+        stores=stores,
+        selected_store_id=store_id,
         total_items=total_items,
         total_quantity=total_quantity,
         total_value=total_value,
@@ -2736,22 +3589,21 @@ def enterprise_dashboard_export():
         flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
         return redirect('/dashboard')
 
-    department = (request.args.get('department') or '').strip()
+    store_id = request.args.get('store_id', type=int)
 
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
         query = """
-            SELECT item_name_ar AS item_name, store_name, quantity,
-                   ROUND(COALESCE(unit_price, 0), 2) AS unit_price,
-                   ROUND(COALESCE(quantity, 0) * COALESCE(unit_price, 0), 2) AS total_value
-            FROM vw_current_stock
-            WHERE 1=1
+            SELECT i.item_name_ar AS item_name, s.store_name, si.quantity,
+                   ROUND(COALESCE(si.average_cost, 0), 2) AS unit_price,
+                   ROUND(COALESCE(si.quantity, 0) * COALESCE(si.average_cost, 0), 2) AS total_value
+            FROM store_items si
+            JOIN items i ON i.id=si.item_id
+            JOIN stores s ON s.id=si.store_id
+            WHERE (%s IS NULL OR si.store_id=%s)
         """
-        params = []
-        if department:
-            query += " AND LOWER(store_name) LIKE LOWER(%s) "
-            params.append(f"%{department}%")
+        params = [store_id, store_id]
 
         query += " ORDER BY total_value DESC LIMIT 500"
         cur.execute(query, tuple(params))
@@ -2760,7 +3612,8 @@ def enterprise_dashboard_export():
         cur.close()
         conn.close()
 
-    output = io.StringIO()
+    output = io.StringIO(newline='')
+    output.write('\ufeff')
     writer = csv.writer(output)
     writer.writerow(['الصنف', 'المخزن', 'الكمية', 'سعر الوحدة', 'إجمالي القيمة'])
 
@@ -2777,6 +3630,125 @@ def enterprise_dashboard_export():
     response.headers['Content-Type'] = 'text/csv; charset=utf-8'
     response.headers['Content-Disposition'] = 'attachment; filename="enterprise_report.csv"'
     return response
+
+
+@app.route('/reports/enterprise-dashboard/export.pdf')
+def enterprise_dashboard_pdf_export():
+    if not has_permission('reports.view'):
+        flash('ليس لديك صلاحية للوصول إلى التقارير.', 'danger')
+        return redirect('/dashboard')
+
+    store_id = request.args.get('store_id', type=int)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+            SELECT i.item_name_ar AS item_name, s.store_name, si.quantity,
+                   ROUND(COALESCE(si.average_cost, 0), 2) AS unit_price,
+                   ROUND(COALESCE(si.quantity, 0) * COALESCE(si.average_cost, 0), 2) AS total_value
+            FROM store_items si
+            JOIN items i ON i.id=si.item_id
+            JOIN stores s ON s.id=si.store_id
+            WHERE (%s IS NULL OR si.store_id=%s)
+            ORDER BY total_value DESC
+            LIMIT 500
+        """, (store_id, store_id))
+        rows = cur.fetchall() or []
+    finally:
+        cur.close()
+        conn.close()
+
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as exc:
+        return (
+            f"PDF export dependency missing: {exc.name}. Install the project requirements with 'pip install -r requirements.txt'.",
+            503,
+        )
+
+    font_candidates = (
+        Path(os.environ.get('ARABIC_PDF_FONT', '')) if os.environ.get('ARABIC_PDF_FONT') else None,
+        Path(r'C:\Windows\Fonts\tahoma.ttf'),
+        Path('/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf'),
+        Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+    )
+    font_path = next((path for path in font_candidates if path and path.is_file()), None)
+    if not font_path:
+        return 'Arabic font not found. Set ARABIC_PDF_FONT to an Arabic-capable .ttf file.', 503
+
+    font_name = 'EnterpriseArabic'
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+
+    def rtl(value):
+        return get_display(arabic_reshaper.reshape(str(value or '')))
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'ReportTitle', parent=styles['Title'], fontName=font_name,
+        fontSize=16, leading=21, alignment=TA_RIGHT, textColor=colors.HexColor('#12304a'),
+    )
+    cell_style = ParagraphStyle(
+        'ReportCell', parent=styles['Normal'], fontName=font_name,
+        fontSize=8, leading=11, alignment=TA_RIGHT,
+    )
+    header_style = ParagraphStyle(
+        'ReportHeader', parent=cell_style, fontSize=9, textColor=colors.white,
+        alignment=TA_CENTER,
+    )
+
+    headings = ['إجمالي القيمة', 'سعر الوحدة', 'الكمية', 'المخزن', 'الصنف']
+    table_data = [[Paragraph(rtl(value), header_style) for value in headings]]
+    for row in rows:
+        values = [
+            f"{float(row.get('total_value') or 0):.2f}",
+            f"{float(row.get('unit_price') or 0):.2f}",
+            f"{float(row.get('quantity') or 0):.2f}",
+            rtl(row.get('store_name')),
+            rtl(row.get('item_name')),
+        ]
+        table_data.append([Paragraph(value, cell_style) for value in values])
+    if not rows:
+        table_data.append([Paragraph(rtl('لا توجد بيانات للمخزن المحدد.'), cell_style)] + [''] * 4)
+
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output, pagesize=landscape(A4), rightMargin=28, leftMargin=28,
+        topMargin=28, bottomMargin=28,
+        title=rtl('تقرير أرصدة المخزون'),
+    )
+    report_table = Table(table_data, colWidths=[105, 90, 75, 190, 300], repeatRows=1)
+    report_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12304a')),
+        ('GRID', (0, 0), (-1, -1), 0.35, colors.HexColor('#cbd5e1')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f1f5f9')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    document.build([
+        Paragraph(rtl('تقرير أرصدة المخزون الحالية'), title_style),
+        Spacer(1, 14),
+        report_table,
+    ])
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='enterprise_report.pdf',
+        mimetype='application/pdf',
+    )
 
 
 @app.route('/reports/abc-analysis')
@@ -3032,9 +4004,18 @@ def add_requisition():
 
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute(
-        "SELECT id, item_name_ar, current_stock, '' AS store_name FROM items ORDER BY item_name_ar"
-    )
+    cur.execute("""
+        SELECT
+            i.id,
+            i.item_name_ar,
+            COALESCE(SUM(si.quantity), i.current_stock, 0) AS current_stock,
+            COALESCE(GROUP_CONCAT(DISTINCT s.store_name ORDER BY s.store_name SEPARATOR ', '), '') AS store_name
+        FROM items i
+        LEFT JOIN store_items si ON si.item_id=i.id
+        LEFT JOIN stores s ON s.id=si.store_id
+        GROUP BY i.id, i.item_name_ar, i.current_stock
+        ORDER BY i.item_name_ar
+    """)
     items = cur.fetchall()
 
     cur.execute(
@@ -3162,10 +4143,23 @@ def delete_requisition(req_id):
 def approve_requisition(req_id):
     if "user" not in session:
         return redirect("/")
+    flash("اختر عرض السعر من شاشة المقارنة لاعتماد الطلب وإنشاء أمر الشراء", "warning")
+    return redirect(f"/requisition/quotations/{req_id}")
+
+
+@app.route("/requisition/quotations/<int:req_id>", methods=["GET", "POST"])
+def compare_requisition_quotations(req_id):
+    if "user" not in session:
+        return redirect("/")
 
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT status FROM purchase_requisitions WHERE id=%s", (req_id,))
+    cur.execute("""
+        SELECT pr.*, i.item_name_ar
+        FROM purchase_requisitions pr
+        LEFT JOIN items i ON pr.item_id = i.id
+        WHERE pr.id=%s
+    """, (req_id,))
     req = cur.fetchone()
     if not req:
         cur.close()
@@ -3173,19 +4167,139 @@ def approve_requisition(req_id):
         flash("طلب الشراء غير موجود", "danger")
         return redirect("/requisitions")
 
-    if req["status"] == "approved":
-        flash("طلب الشراء تم اعتماده مسبقاً", "warning")
-    else:
-        cur.execute(
-            "UPDATE purchase_requisitions SET status='approved' WHERE id=%s",
-            (req_id,)
-        )
-        conn.commit()
-        flash("تم اعتماد طلب الشراء", "success")
+    if request.method == "POST":
+        quote_id = request.form.get("quote_id", type=int)
+        if not quote_id:
+            cur.close()
+            conn.close()
+            flash("اختر عرض السعر الذي تريد اعتماده", "warning")
+            return redirect(f"/requisition/quotations/{req_id}")
 
+        cur.execute("""
+            SELECT id, supplier_name, vendor_id, price
+            FROM price_quotations
+            WHERE id=%s AND requisition_id=%s
+        """, (quote_id, req_id))
+        chosen_quote = cur.fetchone()
+        if not chosen_quote:
+            cur.close()
+            conn.close()
+            flash("عرض السعر المختار غير تابع لهذا الطلب", "danger")
+            return redirect(f"/requisition/quotations/{req_id}")
+
+        if req["status"] not in ("pending", "approved"):
+            cur.close()
+            conn.close()
+            flash("لا يمكن إنشاء أمر شراء لطلب مرفوض", "warning")
+            return redirect(f"/requisition/quotations/{req_id}")
+
+        cur.execute("SELECT id, po_number FROM purchase_orders WHERE requisition_id=%s LIMIT 1", (req_id,))
+        existing_order = cur.fetchone()
+        if existing_order:
+            cur.close()
+            conn.close()
+            flash(f"تم إنشاء أمر الشراء مسبقًا: {existing_order['po_number']}", "info")
+            return redirect("/purchase-orders")
+
+        if req["status"] == "approved":
+            cur.execute("""
+                SELECT id
+                FROM price_quotations
+                WHERE requisition_id=%s AND status='accepted'
+                LIMIT 1
+            """, (req_id,))
+            accepted_quote = cur.fetchone()
+            if accepted_quote and accepted_quote["id"] != quote_id:
+                cur.close()
+                conn.close()
+                flash("لا يمكن تغيير العرض بعد اعتماده", "warning")
+                return redirect(f"/requisition/quotations/{req_id}")
+
+        quantity = float(req.get("quantity") or 0)
+        unit_price = float(chosen_quote.get("price") or 0)
+        if quantity <= 0 or not chosen_quote.get("vendor_id") or not req.get("item_id"):
+            cur.close()
+            conn.close()
+            flash("بيانات الطلب أو المورد غير مكتملة، تعذر إنشاء أمر الشراء", "danger")
+            return redirect(f"/requisition/quotations/{req_id}")
+
+        cur.execute("SELECT id FROM users WHERE username=%s LIMIT 1", (session.get("user"),))
+        creator = cur.fetchone()
+        created_by = creator["id"] if creator else None
+        po_number = next_purchase_order_number(cur)
+        total_amount = quantity * unit_price
+
+        cur.execute("""
+            INSERT INTO purchase_orders
+            (po_number, vendor_id, order_date, expected_delivery_date, status,
+             subtotal, tax_amount, total_amount, notes, created_by, requisition_id)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            po_number,
+            chosen_quote["vendor_id"],
+            datetime.now().date(),
+            None,
+            "draft",
+            total_amount,
+            0,
+            total_amount,
+            f"أمر شراء من عرض السعر {quote_id}",
+            created_by,
+            req_id
+        ))
+        order_id = cur.lastrowid
+        cur.execute("""
+            INSERT INTO purchase_order_items
+            (purchase_order_id, item_id, quantity, unit_price, line_total, remarks)
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """, (
+            order_id,
+            req["item_id"],
+            quantity,
+            unit_price,
+            total_amount,
+            f"طلب شراء رقم {req_id} - عرض السعر {quote_id}"
+        ))
+
+        cur.execute("""
+            UPDATE price_quotations
+            SET status=CASE WHEN id=%s THEN 'accepted' ELSE 'pending' END
+            WHERE requisition_id=%s
+        """, (quote_id, req_id))
+        if req["status"] == "pending":
+            cur.execute(
+                "UPDATE purchase_requisitions SET status='approved' WHERE id=%s",
+                (req_id,)
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        flash(
+            f"تم اعتماد الطلب وإنشاء أمر الشراء {po_number} بناءً على عرض {chosen_quote['supplier_name']}، بإجمالي {total_amount:.2f} ج.م",
+            "success"
+        )
+        return redirect("/requisitions")
+
+    cur.execute("""
+        SELECT id, supplier_name, price, valid_until, notes, status
+        FROM price_quotations
+        WHERE requisition_id=%s
+        ORDER BY price ASC, id ASC
+    """, (req_id,))
+    quotations = cur.fetchall() or []
+    cur.execute("SELECT id, po_number, status FROM purchase_orders WHERE requisition_id=%s LIMIT 1", (req_id,))
+    purchase_order = cur.fetchone()
+    accepted_quote = next((quote for quote in quotations if quote.get("status") == "accepted"), None)
     cur.close()
     conn.close()
-    return redirect("/requisitions")
+
+    return render_template(
+        "requisition_quotations.html",
+        requisition=req,
+        quotations=quotations,
+        purchase_order=purchase_order,
+        accepted_quote=accepted_quote
+    )
 
 
 @app.route("/requisition/reject/<int:req_id>", methods=["POST"])
@@ -3228,14 +4342,18 @@ def requisitions():
     department = request.args.get('department')
     department = normalize_department_key(department) if department else None
     if has_column('purchase_requisitions', 'store_id'):
-        query = ("SELECT pr.*, i.item_name_ar, i.current_stock, s.store_name "
+        query = ("SELECT pr.*, i.item_name_ar, i.current_stock, s.store_name, "
+                 "po.id AS purchase_order_id, po.po_number, po.status AS purchase_order_status "
                  "FROM purchase_requisitions pr "
                  "LEFT JOIN items i ON pr.item_id=i.id "
-                 "LEFT JOIN stores s ON pr.store_id=s.id ")
+                 "LEFT JOIN stores s ON pr.store_id=s.id "
+                 "LEFT JOIN purchase_orders po ON po.requisition_id=pr.id ")
     else:
-        query = ("SELECT pr.*, i.item_name_ar, i.current_stock, NULL AS store_name "
+        query = ("SELECT pr.*, i.item_name_ar, i.current_stock, NULL AS store_name, "
+                 "po.id AS purchase_order_id, po.po_number, po.status AS purchase_order_status "
                  "FROM purchase_requisitions pr "
-                 "LEFT JOIN items i ON pr.item_id=i.id ")
+                 "LEFT JOIN items i ON pr.item_id=i.id "
+                 "LEFT JOIN purchase_orders po ON po.requisition_id=pr.id ")
     params = []
     if department:
         query += "WHERE i.department=%s "
@@ -3683,7 +4801,7 @@ def add_quotation(req_id):
         cur.close()
         conn.close()
         flash("تم حفظ عرض السعر", "success")
-        return redirect("/requisitions")
+        return redirect(f"/requisition/quotations/{req_id}")
 
     cur.close()
     conn.close()
@@ -3716,7 +4834,7 @@ def quotation_order(quote_id):
         flash("عرض السعر غير موجود", "danger")
         return redirect("/purchase-orders")
 
-    po_number = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    po_number = next_purchase_order_number(cur)
     cur.execute("""
         INSERT INTO purchase_orders
         (po_number, vendor_id, order_date, expected_delivery_date, status, subtotal, tax_amount, total_amount, notes, created_by, requisition_id)
@@ -3823,7 +4941,7 @@ def add_purchase_order():
         expected_delivery_date = request.form["expected_delivery_date"]
         notes = request.form["notes"]
 
-        po_number = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        po_number = next_purchase_order_number(cur, order_date)
 
         cur.execute("""
             INSERT INTO purchase_orders
@@ -3909,6 +5027,9 @@ def create_order():
             FROM purchase_requisitions pr
             LEFT JOIN items i ON pr.item_id = i.id
             WHERE pr.status = 'approved'
+                            AND NOT EXISTS (
+                                    SELECT 1 FROM purchase_orders po WHERE po.requisition_id = pr.id
+                            )
             ORDER BY pr.id DESC
         """)
     else:
@@ -3917,6 +5038,9 @@ def create_order():
             FROM purchase_requisitions pr
             LEFT JOIN items i ON pr.item_id = i.id
             WHERE pr.status = 'approved'
+                            AND NOT EXISTS (
+                                    SELECT 1 FROM purchase_orders po WHERE po.requisition_id = pr.id
+                            )
             ORDER BY pr.id DESC
         """)
     
@@ -3992,7 +5116,7 @@ def save_purchase_order():
     cur = conn.cursor()
 
     try:
-        po_number = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        po_number = next_purchase_order_number(cur, order_date)
 
         # Insert into purchase_orders
         cur.execute("""
@@ -4185,6 +5309,9 @@ def view_purchase_order(order_id):
 
     order_items = cur.fetchall()
 
+    cur.execute("SELECT id, supplier_name FROM suppliers ORDER BY supplier_name")
+    vendors = cur.fetchall()
+
     cur.close()
     conn.close()
 
@@ -4192,7 +5319,8 @@ def view_purchase_order(order_id):
         "purchase_order_detail.html",
         order=order,
         items=items,
-        order_items=order_items
+        order_items=order_items,
+        vendors=vendors
     )
 
 @app.route("/purchase-orders/approve/<int:order_id>", methods=["POST"])
@@ -4218,6 +5346,253 @@ def approve_purchase_order(order_id):
         conn.close()
 
     return redirect("/purchase-orders")
+
+
+def _receive_purchase_order_inventory(cur, order, receipt_quantities, expected_received_quantities, receipt_reason):
+    if not order.get("store_id") or not order.get("store_name"):
+        raise ValueError("اربط طلب الشراء بمخزن قبل تسجيل الاستلام")
+
+    cur.execute("""
+        SELECT id, item_id, quantity, received_quantity, unit_price
+        FROM purchase_order_items
+        WHERE purchase_order_id=%s
+    """, (order["id"],))
+    order_items = cur.fetchall() or []
+    if not order_items:
+        raise ValueError("لا توجد بنود في أمر الشراء لاستلامها")
+
+    accepted_items = []
+    for item in order_items:
+        quantity = float(receipt_quantities.get(str(item["id"]), 0) or 0)
+        ordered_quantity = float(item["quantity"] or 0)
+        received_quantity = float(item["received_quantity"] or 0)
+        expected_received = expected_received_quantities.get(str(item["id"]))
+        if expected_received is None or abs(float(expected_received) - received_quantity) > 0.000001:
+            raise ValueError("تم تحديث كميات الأمر منذ فتح الصفحة؛ حدّث الصفحة ثم حاول مرة أخرى")
+        remaining_quantity = max(ordered_quantity - received_quantity, 0)
+        if quantity < 0 or quantity > remaining_quantity + 0.000001:
+            raise ValueError(f"الكمية المستلمة تتجاوز المتبقي للبند {item['item_id']}")
+        if quantity > 0:
+            accepted_items.append((item, quantity))
+
+    if not accepted_items:
+        raise ValueError("أدخل كمية مستلمة لبند واحد على الأقل")
+
+    cur.execute("SELECT id FROM warehouses WHERE warehouse_name=%s LIMIT 1", (order["store_name"],))
+    warehouse = cur.fetchone()
+    if warehouse:
+        warehouse_id = warehouse["id"]
+    else:
+        cur.execute("INSERT INTO warehouses (warehouse_name) VALUES (%s)", (order["store_name"],))
+        warehouse_id = cur.lastrowid
+
+    for item, quantity in accepted_items:
+        unit_price = float(item["unit_price"] or 0)
+        cur.execute("""
+            SELECT quantity, average_cost
+            FROM store_items
+            WHERE store_id=%s AND item_id=%s
+            FOR UPDATE
+        """, (order["store_id"], item["item_id"]))
+        previous_store_item = cur.fetchone()
+        previous_quantity = float((previous_store_item or {}).get("quantity") or 0)
+        previous_cost = float((previous_store_item or {}).get("average_cost") or 0)
+        new_average_cost = (
+            (previous_quantity * previous_cost + quantity * unit_price) / (previous_quantity + quantity)
+            if previous_quantity + quantity else unit_price
+        )
+
+        cur.execute("""
+            INSERT INTO item_movements
+            (item_id, store_id, movement_type, quantity, unit_cost, total_cost,
+             reference_no, remarks, created_by)
+            VALUES (%s,%s,'purchase',%s,%s,%s,%s,%s,NULL)
+        """, (
+            item["item_id"], order["store_id"], quantity, unit_price,
+            quantity * unit_price, order.get("po_number"),
+            f"{receipt_reason} - استلام أمر الشراء في مخزن {order['store_name']}",
+        ))
+
+        cur.execute(
+            "SELECT quantity FROM store_items WHERE store_id=%s AND item_id=%s FOR UPDATE",
+            (order["store_id"], item["item_id"]),
+        )
+        updated_store_item = cur.fetchone()
+        expected_quantity = previous_quantity + quantity
+        if not updated_store_item:
+            cur.execute("""
+                INSERT INTO store_items (store_id, item_id, quantity, average_cost, last_movement_date)
+                VALUES (%s,%s,%s,%s,NOW())
+            """, (order["store_id"], item["item_id"], expected_quantity, new_average_cost))
+        else:
+            actual_quantity = float(updated_store_item.get("quantity") or 0)
+            if abs(actual_quantity - expected_quantity) > 0.0001:
+                cur.execute("""
+                    UPDATE store_items SET quantity=%s WHERE store_id=%s AND item_id=%s
+                """, (expected_quantity, order["store_id"], item["item_id"]))
+            cur.execute("""
+                UPDATE store_items SET average_cost=%s, last_movement_date=NOW()
+                WHERE store_id=%s AND item_id=%s
+            """, (new_average_cost, order["store_id"], item["item_id"]))
+
+        cur.execute("""
+            UPDATE items
+            SET current_stock=COALESCE(current_stock,0)+%s,
+                current_balance=COALESCE(current_balance,0)+%s
+            WHERE id=%s
+        """, (quantity, quantity, item["item_id"]))
+
+        cur.execute("""
+            INSERT INTO stock_transactions
+            (item_id, warehouse_id, transaction_type, qty, reference_no, notes)
+            VALUES (%s,%s,'IN',%s,%s,%s)
+        """, (
+            item["item_id"],
+            warehouse_id,
+            quantity,
+            order["po_number"],
+            f"{receipt_reason} - استلام أمر الشراء في مخزن {order['store_name']}"
+        ))
+
+        cur.execute(
+            "UPDATE purchase_order_items SET received_quantity=COALESCE(received_quantity,0)+%s WHERE id=%s",
+            (quantity, item["id"])
+        )
+
+    cur.execute("""
+        SELECT COUNT(*) AS remaining_lines
+        FROM purchase_order_items
+        WHERE purchase_order_id=%s
+          AND COALESCE(received_quantity,0) < quantity
+    """, (order["id"],))
+    return "partially_received" if cur.fetchone()["remaining_lines"] else "received"
+
+
+@app.route("/purchase-orders/receive/<int:order_id>", methods=["GET", "POST"])
+def receive_purchase_order(order_id):
+    if "user" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+                 SELECT po.id, po.po_number, po.status, po.requisition_id,
+                     po.vendor_id, v.supplier_name, pr.store_id, s.store_name
+            FROM purchase_orders po
+                 LEFT JOIN suppliers v ON v.id=po.vendor_id
+            LEFT JOIN purchase_requisitions pr ON pr.id=po.requisition_id
+            LEFT JOIN stores s ON s.id=pr.store_id
+            WHERE po.id=%s
+            FOR UPDATE
+        """, (order_id,))
+        order = cur.fetchone()
+        if not order:
+            flash("أمر الشراء غير موجود", "danger")
+            return redirect("/purchase-orders")
+        if order["status"] == "received":
+            flash("تم استلام أمر الشراء بالكامل", "info")
+            return redirect("/purchase-orders")
+        if order["status"] not in ("draft", "approved", "partially_received"):
+            flash("حالة أمر الشراء لا تسمح بالاستلام", "warning")
+            return redirect("/purchase-orders")
+
+        cur.execute("""
+            SELECT poi.id, poi.item_id, poi.quantity, poi.received_quantity,
+                   poi.unit_price, i.item_name_ar
+            FROM purchase_order_items poi
+            JOIN items i ON i.id=poi.item_id
+            WHERE poi.purchase_order_id=%s
+            ORDER BY poi.id
+        """, (order_id,))
+        order_items = cur.fetchall() or []
+
+        if request.method == "GET":
+            return render_template("receive_purchase_order.html", order=order, order_items=order_items)
+
+        receipt_reason = request.form.get("receipt_reason", "").strip()
+        if not receipt_reason:
+            raise ValueError("اكتب سبب أو ملاحظة الاستلام")
+        receipt_quantities = {
+            str(item["id"]): request.form.get(f"received_qty_{item['id']}", "0")
+            for item in order_items
+        }
+        expected_received_quantities = {
+            str(item["id"]): request.form.get(f"received_before_{item['id']}")
+            for item in order_items
+        }
+        new_status = _receive_purchase_order_inventory(
+            cur,
+            order,
+            receipt_quantities,
+            expected_received_quantities,
+            receipt_reason
+        )
+        cur.execute("UPDATE purchase_orders SET status=%s WHERE id=%s", (new_status, order_id))
+        conn.commit()
+        if new_status == "received":
+            flash(f"تم استلام أمر الشراء {order['po_number']} بالكامل وتحديث المخزون", "success")
+        else:
+            flash(f"تم تسجيل الاستلام الجزئي لأمر الشراء {order['po_number']}", "success")
+    except ValueError as exc:
+        conn.rollback()
+        flash(str(exc), "danger")
+    except Exception:
+        conn.rollback()
+        flash("تعذر تسجيل استلام أمر الشراء، ولم يتم تغيير الأرصدة", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect("/purchase-orders")
+
+
+@app.route("/requisition/complete/<int:req_id>", methods=["POST"])
+def complete_requisition_purchase(req_id):
+    if "user" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+            SELECT pr.status AS requisition_status, po.id, po.po_number, po.status,
+                   pr.store_id, s.store_name
+            FROM purchase_requisitions pr
+            LEFT JOIN purchase_orders po ON po.requisition_id=pr.id
+            LEFT JOIN stores s ON s.id=pr.store_id
+            WHERE pr.id=%s
+            FOR UPDATE
+        """, (req_id,))
+        order = cur.fetchone()
+        if not order:
+            flash("طلب الشراء غير موجود", "danger")
+            return redirect("/requisitions")
+        if order["requisition_status"] != "approved":
+            flash("اعتمد عرض السعر أولًا قبل استكمال طلب الشراء", "warning")
+            return redirect("/requisitions")
+        if not order.get("id"):
+            flash("لا يوجد أمر شراء مرتبط بهذا الطلب، راجع عروض الأسعار أولًا", "warning")
+            return redirect(f"/requisition/quotations/{req_id}")
+        if order["status"] == "received":
+            flash("تم استلام هذا الطلب بالكامل", "info")
+            return redirect("/requisitions")
+        if order["status"] not in ("draft", "approved", "partially_received"):
+            flash("حالة أمر الشراء لا تسمح باستكماله", "warning")
+            return redirect("/requisitions")
+        conn.commit()
+        return redirect(url_for("receive_purchase_order", order_id=order["id"]))
+    except ValueError as exc:
+        conn.rollback()
+        flash(str(exc), "danger")
+    except Exception:
+        conn.rollback()
+        flash("تعذر استكمال طلب الشراء، ولم يتم تغيير الأرصدة", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect("/requisitions")
 
 
 @app.route("/purchase-orders/delete/<int:order_id>", methods=["POST"])
@@ -4254,6 +5629,393 @@ issue_vouchers_bp = Blueprint(
     "issue_vouchers",
     __name__
 )
+
+
+def create_issue_voucher():
+    if "user" not in session:
+        return redirect("/")
+
+    ensure_issue_voucher_schema()
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    if request.method == "POST":
+        try:
+            issue_date = request.form.get("issue_date")
+            department = normalize_department_key(request.form.get("department") or "local_purchases")
+            receiver_name = request.form.get("receiver_name", "").strip()
+            notes = request.form.get("notes", "").strip()
+            if not issue_date:
+                raise ValueError("أدخل تاريخ الإذن.")
+            try:
+                issue_date = datetime.strptime(issue_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise ValueError("تاريخ الإذن غير صحيح.")
+
+            lines = []
+            totals_by_item = {}
+            totals_by_item_store = {}
+            for item_id, store_id_value, quantity_value, price_value in zip(
+                request.form.getlist("item_id[]"),
+                request.form.getlist("store_id[]"),
+                request.form.getlist("qty[]"),
+                request.form.getlist("unit_price[]"),
+            ):
+                if not item_id:
+                    continue
+                try:
+                    item_id = int(item_id)
+                    store_id = int(store_id_value)
+                    quantity = float(quantity_value or 0)
+                    price = float(price_value or 0)
+                except (TypeError, ValueError):
+                    raise ValueError("اختر مخزنًا لكل بند وتحقق من الكميات والأسعار.")
+                if quantity <= 0:
+                    continue
+                if price < 0:
+                    raise ValueError("سعر الوحدة لا يمكن أن يكون سالبًا.")
+                lines.append((item_id, store_id, quantity, price))
+                totals_by_item[item_id] = totals_by_item.get(item_id, 0) + quantity
+                store_key = (item_id, store_id)
+                totals_by_item_store[store_key] = totals_by_item_store.get(store_key, 0) + quantity
+            if not lines:
+                raise ValueError("أضف صنفًا واحدًا على الأقل بكمية صحيحة.")
+
+            item_details = {}
+            for item_id, total_quantity in totals_by_item.items():
+                cur.execute(
+                    """SELECT i.current_stock, i.current_balance, i.price, i.unit_price, i.department,
+                       COALESCE(
+                           (SELECT im.unit_cost FROM item_movements im
+                            WHERE im.item_id=i.id AND im.movement_type='purchase'
+                            ORDER BY im.created_at DESC, im.id DESC LIMIT 1),
+                                                     (SELECT poi.unit_price FROM purchase_order_items poi
+                                                        JOIN purchase_orders po ON po.id=poi.purchase_order_id
+                                                        WHERE poi.item_id=i.id AND COALESCE(poi.received_quantity,0)>0
+                                                            AND po.status IN ('received','partially_received')
+                                                        ORDER BY po.id DESC, poi.id DESC LIMIT 1),
+                           NULLIF(i.unit_price,0), i.price, 0
+                       ) AS last_purchase_price
+                       FROM items i WHERE i.id=%s FOR UPDATE""",
+                    (item_id,),
+                )
+                item = cur.fetchone()
+                if not item or normalize_department_key(item.get("department")) != department:
+                    raise ValueError(f"الصنف {item_id} لا يتبع الإدارة المحددة.")
+                if total_quantity > float(item.get("current_stock") or 0):
+                    raise ValueError(f"الكمية المطلوبة أكبر من الرصيد المتاح للصنف {item_id}.")
+                if total_quantity > float(item.get("current_balance") or 0):
+                    raise ValueError(f"الكمية المطلوبة أكبر من الرصيد الإجمالي للصنف {item_id}.")
+                item_details[item_id] = item
+
+            for (item_id, store_id), total_quantity in totals_by_item_store.items():
+                cur.execute("SELECT id FROM stores WHERE id=%s AND is_active=1 FOR UPDATE", (store_id,))
+                if not cur.fetchone():
+                    raise ValueError("أحد المخازن المحددة غير موجود أو غير مفعل.")
+                cur.execute(
+                    "SELECT quantity FROM store_items WHERE store_id=%s AND item_id=%s FOR UPDATE",
+                    (store_id, item_id),
+                )
+                stock_row = cur.fetchone()
+                store_quantity = float(stock_row.get("quantity") or 0) if stock_row else 0
+                if total_quantity > store_quantity:
+                    raise ValueError(
+                        f"رصيد الصنف {item_id} في المخزن {store_id} غير كافٍ (المتاح {store_quantity:.2f})."
+                    )
+
+            unique_store_ids = {line[1] for line in lines}
+            voucher_store_id = next(iter(unique_store_ids)) if len(unique_store_ids) == 1 else None
+
+            cur.execute(
+                     """INSERT INTO issue_voucher_sequences (issue_date, sequence_value)
+                   VALUES (%s,0) ON DUPLICATE KEY UPDATE issue_date=VALUES(issue_date)""",
+                (issue_date,),
+            )
+            cur.execute(
+                "SELECT sequence_value FROM issue_voucher_sequences WHERE issue_date=%s FOR UPDATE",
+                (issue_date,),
+            )
+            next_sequence = int(cur.fetchone()["sequence_value"]) + 1
+            cur.execute(
+                "UPDATE issue_voucher_sequences SET sequence_value=%s WHERE issue_date=%s",
+                (next_sequence, issue_date),
+            )
+            voucher_no = format_issue_voucher_number(issue_date, next_sequence)
+
+            cur.execute(
+                """INSERT INTO issue_vouchers
+                   (voucher_no, issue_date, department, receiver_name, notes, created_by, status, approved_at, store_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,'approved',NOW(),%s)""",
+                (voucher_no, issue_date, department, receiver_name, notes, session.get("user"), voucher_store_id),
+            )
+            voucher_id = cur.lastrowid
+            for item_id, store_id, quantity, entered_price in lines:
+                item = item_details[item_id]
+                unit_price = entered_price or float(item.get("last_purchase_price") or 0)
+                cur.execute(
+                    "INSERT INTO issue_voucher_items (voucher_id,item_id,store_id,qty,unit_price,total) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (voucher_id, item_id, store_id, quantity, unit_price, quantity * unit_price),
+                )
+                cur.execute(
+                    "UPDATE items SET current_stock=current_stock-%s, current_balance=COALESCE(current_balance,0)-%s WHERE id=%s",
+                    (quantity, quantity, item_id),
+                )
+                cur.execute(
+                    """INSERT INTO item_movements
+                       (item_id,store_id,movement_type,quantity,unit_cost,total_cost,reference_no,remarks,created_by)
+                       VALUES (%s,%s,'issue',%s,%s,%s,%s,%s,%s)""",
+                    (
+                        item_id, store_id, quantity, unit_price, quantity * unit_price,
+                        voucher_no, f"إذن صرف {voucher_no}", get_current_user_id(conn),
+                    ),
+                )
+                cur.execute(
+                    """INSERT INTO stock_movements
+                       (item_id,warehouse_id,movement_type,qty,reference_type,reference_id)
+                       VALUES (%s,%s,'OUT',%s,'ISSUE_VOUCHER',%s)""",
+                    (item_id, store_id, quantity, voucher_id),
+                )
+            conn.commit()
+            flash(f"تم إنشاء إذن الصرف رقم {voucher_no} وخصم الكميات من رصيد المخزن.", "success")
+            return redirect("/issue-vouchers")
+        except Exception as exc:
+            conn.rollback()
+            flash(str(exc), "danger")
+
+    selected_department = normalize_department_key(
+        request.args.get("department") or request.form.get("department") or "local_purchases"
+    )
+    default_issue_date = request.form.get("issue_date") or datetime.now().date().isoformat()
+    cur.execute("""
+        SELECT i.id, i.item_code, i.item_name_ar, i.department,
+               COALESCE(si.quantity,0) AS store_quantity,
+               si.store_id, s.store_name,
+               COALESCE(
+                   (SELECT im.unit_cost FROM item_movements im
+                    WHERE im.item_id=i.id AND im.movement_type='purchase'
+                    ORDER BY im.created_at DESC, im.id DESC LIMIT 1),
+                                     (SELECT poi.unit_price FROM purchase_order_items poi
+                                        JOIN purchase_orders po ON po.id=poi.purchase_order_id
+                                        WHERE poi.item_id=i.id AND COALESCE(poi.received_quantity,0)>0
+                                            AND po.status IN ('received','partially_received')
+                                        ORDER BY po.id DESC, poi.id DESC LIMIT 1),
+                   NULLIF(i.unit_price,0), i.price, 0
+               ) AS last_purchase_price
+        FROM items i
+        JOIN store_items si ON si.item_id=i.id
+        JOIN stores s ON s.id=si.store_id AND s.is_active=1
+        ORDER BY i.item_name_ar, s.store_name
+    """)
+    items = cur.fetchall() or []
+    cur.execute("SELECT id,store_name FROM stores WHERE is_active=1 ORDER BY store_name")
+    stores = cur.fetchall() or []
+    cur.execute("SELECT DISTINCT department FROM items WHERE department IS NOT NULL ORDER BY department")
+    departments = cur.fetchall() or []
+    voucher_no_preview = get_issue_voucher_number_preview(cur, default_issue_date)
+    cur.close()
+    conn.close()
+    return render_template(
+        "add_issue_voucher.html",
+        items=items,
+        stores=stores,
+        departments=departments,
+        selected_department=selected_department,
+        default_issue_date=default_issue_date,
+        voucher_no_preview=voucher_no_preview,
+    )
+
+
+@app.route('/balance-management')
+@app.route('/stock/balance-review')
+def stock_balance_review():
+    if "user" not in session:
+        return redirect("/")
+
+    filters = parse_stock_report_filters(request.args)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+
+    try:
+        cur.execute("""
+            SELECT i.id, i.item_code, i.item_name_ar, i.department,
+                   i.current_stock, i.current_balance, i.min_qty,
+                   si.store_id, s.store_name, si.quantity AS store_quantity
+                        FROM items i
+                        LEFT JOIN store_items si ON si.item_id = i.id
+            LEFT JOIN stores s ON s.id = si.store_id
+                        WHERE (%s IS NULL OR i.department = %s)
+                            AND (%s IS NULL OR i.id = %s)
+              AND (%s IS NULL OR si.store_id = %s)
+            ORDER BY item_name_ar
+        """, (
+            filters['department'], filters['department'],
+            filters['item_id'], filters['item_id'],
+            filters['store_id'], filters['store_id'],
+        ))
+        item_rows = cur.fetchall() or []
+        for item in item_rows:
+            item['review_quantity'] = float(
+                item.get('store_quantity') if item.get('store_quantity') is not None
+                else item.get('current_stock') or 0
+            )
+        low_stock_items = [
+            item for item in item_rows
+            if is_stock_below_reorder_level(item['review_quantity'], item.get('min_qty'))
+        ]
+
+        report_rows = load_stock_reconciliation_rows(
+            cur,
+            filters['date_from'],
+            filters['date_to'],
+            filters['period'],
+            filters['item_id'],
+            filters['store_id'],
+            filters['department'],
+        )
+        cur.execute("SELECT id, store_name FROM stores ORDER BY store_name")
+        stores = cur.fetchall() or []
+        cur.execute("SELECT DISTINCT department FROM items WHERE department IS NOT NULL ORDER BY department")
+        departments = cur.fetchall() or []
+        cur.execute("SELECT id, item_code, item_name_ar FROM items ORDER BY item_name_ar")
+        items = cur.fetchall() or []
+
+        final_rows = {}
+        opening_total = 0.0
+        for row in report_rows:
+            key = (row['item_id'], row['store_id'])
+            if key not in final_rows:
+                opening_total += row['opening_balance']
+            final_rows[key] = row
+        summary = {
+            'items_count': len({row['id'] for row in item_rows}),
+            'opening_balance': opening_total,
+            'quantity_in': sum(row['quantity_in'] for row in report_rows),
+            'quantity_out': sum(row['quantity_out'] for row in report_rows),
+            'closing_balance': sum(row['closing_balance'] for row in final_rows.values()),
+            'actual_quantity': sum(float(row['actual_quantity'] or 0) for row in final_rows.values()),
+            'variance': sum(float(row['variance'] or 0) for row in final_rows.values()),
+        }
+
+        return render_template(
+            "stock_balance_review.html",
+            title="إدارة الأرصدة والمخزون",
+            items=item_rows,
+            movements=report_rows,
+            summary=summary,
+            low_stock_items=low_stock_items,
+            stores=stores,
+            departments=departments,
+            item_options=items,
+            filters=filters,
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/balance-management/export.xlsx')
+def stock_balance_export_xlsx():
+    if "user" not in session:
+        return redirect("/")
+
+    filters = parse_stock_report_filters(request.args)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        rows = load_stock_reconciliation_rows(
+            cur, filters['date_from'], filters['date_to'], filters['period'],
+            filters['item_id'], filters['store_id'], filters['department'],
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "مراجعة الأرصدة"
+    headers = ["الفترة", "كود الصنف", "الصنف", "الإدارة", "المخزن", "رصيد أول المدة", "وارد", "منصرف", "رصيد الإقفال", "الرصيد الفعلي الحالي", "فرق المراجعة"]
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="176B68")
+    for row in rows:
+        sheet.append([
+            str(row.get('period') or ''), row.get('item_code') or '',
+            row.get('item_name_ar') or '', row.get('department') or '',
+            row.get('store_name') or '', row.get('opening_balance') or 0,
+            row.get('quantity_in') or 0, row.get('quantity_out') or 0,
+            row.get('closing_balance') or 0, row.get('actual_quantity'), row.get('variance'),
+        ])
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    for column_cells in sheet.columns:
+        column_letter = column_cells[0].column_letter
+        sheet.column_dimensions[column_letter].width = min(
+            max(max(len(str(cell.value or "")) for cell in column_cells) + 2, 12), 34
+        )
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="stock_reconciliation.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.route('/balance-management/export.pdf')
+def stock_balance_export_pdf():
+    if "user" not in session:
+        return redirect("/")
+
+    filters = parse_stock_report_filters(request.args)
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        rows = load_stock_reconciliation_rows(
+            cur, filters['date_from'], filters['date_to'], filters['period'],
+            filters['item_id'], filters['store_id'], filters['department'],
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+    html = render_template(
+        "stock_balance_report_print.html",
+        movements=rows,
+        filters=filters,
+    )
+    response = make_response(html)
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    response.headers["Content-Disposition"] = "inline; filename=stock_reconciliation_print.html"
+    return response
+
+
+@app.route('/issue-vouchers/add', methods=['GET', 'POST'])
+def issue_vouchers_add_route():
+    return create_issue_voucher()
+
+
+@app.route('/issue-vouchers/next-number')
+def issue_voucher_next_number():
+    if "user" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    issue_date = request.args.get("date") or datetime.now().date().isoformat()
+    try:
+        preview_date = datetime.strptime(issue_date, "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return jsonify({"error": "invalid_date"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    try:
+        return jsonify({"voucher_no": get_issue_voucher_number_preview(cur, preview_date)})
+    finally:
+        cur.close()
+        conn.close()
 
 # ==========================
 # قائمة أذونات الصرف
@@ -4330,9 +6092,12 @@ def local_purchase_issue_vouchers():
 # إضافة إذن صرف
 # ==========================
 def add_issue_voucher():
+    return create_issue_voucher()
 
     if "user" not in session:
         return redirect("/")
+
+    ensure_issue_voucher_schema()
 
     conn = mysql.connector.connect(**db_config)
     cur = conn.cursor(dictionary=True)
@@ -4346,30 +6111,64 @@ def add_issue_voucher():
             department = normalize_department_key(request.form.get("department") or 'local_purchases')
             receiver_name = request.form.get("receiver_name", "")
             notes = request.form.get("notes", "")
+            store_id = request.form.get("store_id") or request.form.get("warehouse_id") or 1
 
-            cur.execute("""
-                INSERT INTO issue_vouchers
-                (
+            cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'issue_vouchers' AND COLUMN_NAME = 'status'")
+            has_status = cur.fetchone() is not None
+            cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'issue_vouchers' AND COLUMN_NAME = 'approved_at'")
+            has_approved_at = cur.fetchone() is not None
+            cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'issue_vouchers' AND COLUMN_NAME = 'store_id'")
+            has_store_id = cur.fetchone() is not None
+
+            if has_status and has_approved_at:
+                cur.execute("""
+                    INSERT INTO issue_vouchers
+                    (
+                        voucher_no,
+                        issue_date,
+                        department,
+                        receiver_name,
+                        notes,
+                        created_by,
+                        status,
+                        approved_at,
+                        store_id
+                    )
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s,%s,NOW(),%s)
+                """, (
                     voucher_no,
                     issue_date,
                     department,
                     receiver_name,
                     notes,
-                    created_by,
-                    status,
-                    approved_at
-                )
-                VALUES
-                (%s,%s,%s,%s,%s,%s,%s,NOW())
-            """, (
-                voucher_no,
-                issue_date,
-                department,
-                receiver_name,
-                notes,
-                session["user"],
-                'approved'
-            ))
+                    session["user"],
+                    'approved',
+                    store_id,
+                ))
+            else:
+                cur.execute("""
+                    INSERT INTO issue_vouchers
+                    (
+                        voucher_no,
+                        issue_date,
+                        department,
+                        receiver_name,
+                        notes,
+                        created_by,
+                        store_id
+                    )
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    voucher_no,
+                    issue_date,
+                    department,
+                    receiver_name,
+                    notes,
+                    session["user"],
+                    store_id,
+                ))
 
             voucher_id = cur.lastrowid
 
@@ -4419,25 +6218,51 @@ def add_issue_voucher():
                     voucher_id,
                     item_id,
                     qty,
-                    price or float(item.get("price") or 0),
-                    qty * (price or float(item.get("price") or 0))
+                    unit_price,
+                    qty * unit_price,
                 ))
 
                 cur.execute("""
                     UPDATE items
                     SET current_stock = current_stock - %s,
                         current_balance = COALESCE(current_balance, 0) - %s
-                    WHERE id=%s AND department=%s
-                """, (qty, qty, item_id, department))
+                    WHERE id=%s
+                """, (qty, qty, item_id))
 
-                warehouse_id = request.form.get(f"warehouse_id_{item_id}") or request.form.get("warehouse_id") or 1
+                cur.execute("""
+                    INSERT INTO item_movements
+                    (
+                        item_id,
+                        store_id,
+                        movement_type,
+                        quantity,
+                        unit_cost,
+                        total_cost,
+                        reference_no,
+                        remarks,
+                        created_by
+                    )
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    item_id,
+                    store_id,
+                    'issue',
+                    qty,
+                    unit_price,
+                    qty * unit_price,
+                    voucher_no,
+                    f"إذن صرف {voucher_no}",
+                    get_current_user_id(conn),
+                ))
+
                 cur.execute("""
                     INSERT INTO stock_movements
                     (item_id, warehouse_id, movement_type, qty, reference_type, reference_id)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     item_id,
-                    warehouse_id,
+                    store_id,
                     'OUT',
                     qty,
                     'ISSUE_VOUCHER',
@@ -4454,30 +6279,29 @@ def add_issue_voucher():
             return redirect("/issue-vouchers")
 
         except Exception as e:
-
             conn.rollback()
-
-            flash(
-                str(e),
-                "danger"
-            )
+            flash(str(e), "danger")
 
     cur.execute("""
-        SELECT
-            id,
-            item_name_ar
+        SELECT id, item_code, item_name_ar, department, current_stock, min_qty, price
         FROM items
         ORDER BY item_name_ar
     """)
-
     items = cur.fetchall()
+    cur.execute("SELECT id, store_name FROM stores WHERE is_active=1 ORDER BY store_name")
+    stores = cur.fetchall()
+    cur.execute("SELECT DISTINCT department FROM items WHERE department IS NOT NULL ORDER BY department")
+    departments = cur.fetchall()
 
     cur.close()
     conn.close()
 
     return render_template(
         "add_issue_voucher.html",
-        items=items
+        items=items,
+        stores=stores,
+        departments=departments,
+        selected_department=normalize_department_key(request.args.get('department') or 'local_purchases'),
     )
 
 
@@ -4504,10 +6328,13 @@ def view_issue_voucher(voucher_id):
     cur.execute("""
         SELECT
             d.*,
-            i.item_name_ar AS item_name
+            i.item_name_ar AS item_name,
+            s.store_name
         FROM issue_voucher_items d
         LEFT JOIN items i
             ON i.id=d.item_id
+        LEFT JOIN stores s
+            ON s.id=d.store_id
         WHERE d.voucher_id=%s
     """, (voucher_id,))
 
@@ -4909,33 +6736,52 @@ def customs_inventory_branch():
                 COALESCE(si.quantity, i.current_stock, 0) AS current_stock,
                 i.qty,
                 i.min_qty,
-                i.price,
+                latest_purchase.po_number,
+                latest_purchase.unit_price AS purchase_unit_price,
                 s.store_name AS selected_store_name,
-                u.unit_name,
                 c.category_name_ar,
                 c.category_name_en
             FROM items i
             {store_join}
             LEFT JOIN stores s ON s.id = si.store_id
-            LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN categories c ON c.id = i.category_id
+            LEFT JOIN (
+                SELECT poi.item_id, po.po_number, poi.unit_price
+                FROM purchase_order_items poi
+                JOIN purchase_orders po ON po.id=poi.purchase_order_id
+                JOIN (
+                    SELECT poi_latest.item_id, MAX(poi_latest.purchase_order_id) AS purchase_order_id
+                    FROM purchase_order_items poi_latest
+                    JOIN purchase_orders po_latest ON po_latest.id=poi_latest.purchase_order_id
+                    WHERE po_latest.status <> 'cancelled'
+                    GROUP BY poi_latest.item_id
+                ) latest_order ON latest_order.item_id=poi.item_id
+                    AND latest_order.purchase_order_id=poi.purchase_order_id
+            ) latest_purchase ON latest_purchase.item_id=i.id
             {store_where}
             ORDER BY i.item_name_ar ASC
         """, query_params)
         items = cur.fetchall() or []
+        cur.execute("SELECT COUNT(*) AS total FROM stock_transactions")
+        movements_count = cur.fetchone().get('total', 0) or 0
+        selected_store_name = None
+        if selected_store_id:
+            cur.execute("SELECT store_name FROM stores WHERE id = %s", (selected_store_id,))
+            store = cur.fetchone()
+            selected_store_name = store.get('store_name') if store else None
     finally:
         cur.close()
         conn.close()
 
-    selected_store_name = items[0].get('selected_store_name') if selected_store_id and items else None
     if selected_store_id and not selected_store_name:
-        selected_store_name = 'Selected warehouse'
+        selected_store_name = 'Unknown warehouse' if session.get('language') == 'en' else 'مخزن غير معروف'
 
     return render_template(
         "customs_inventory_branch.html",
         title="قائمة الجرد" if not selected_store_name else f"جرد {selected_store_name}",
         subtitle="إدارة قائمة الجرد داخل إدارة الجمارك" if not selected_store_name else f"الأرصدة الخاصة بمخزن {selected_store_name}",
         items=items,
+        movements_count=movements_count,
         selected_store_id=selected_store_id,
         selected_store_name=selected_store_name
     )

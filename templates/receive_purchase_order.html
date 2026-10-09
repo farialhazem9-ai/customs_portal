@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div>
+            <h3 class="mb-1"><i class="fas fa-box-open text-primary"></i> استلام أمر الشراء</h3>
+            <div class="text-muted">{{ order.po_number }} | المورد: {{ order.supplier_name or '-' }} | المخزن: {{ order.store_name or '-' }}</div>
+        </div>
+        <a href="/purchase-orders" class="btn btn-outline-secondary">العودة للأوامر</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="card shadow-sm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>الصنف</th>
+                            <th>المطلوب</th>
+                            <th>المستلم سابقًا</th>
+                            <th>المتبقي</th>
+                            <th>المستلم الآن</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                        {% set remaining = [item.quantity|float - (item.received_quantity or 0)|float, 0]|max %}
+                        <tr>
+                            <td>{{ item.item_name_ar }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>{{ item.received_quantity or 0 }}</td>
+                            <td>{{ remaining }}</td>
+                            <td>
+                                <input type="hidden" name="received_before_{{ item.id }}" value="{{ item.received_quantity or 0 }}">
+                                <input type="number" class="form-control text-center" name="received_qty_{{ item.id }}" min="0" max="{{ remaining }}" step="0.01" value="0" {% if remaining <= 0 %}disabled{% endif %} aria-label="كمية استلام {{ item.item_name_ar }}">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">سبب / ملاحظة الاستلام</label>
+                <textarea name="receipt_reason" class="form-control" rows="3" required placeholder="مثال: استلام 7 وحدات من أصل 10، والباقي يرد لاحقًا"></textarea>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <a href="/purchase-orders" class="btn btn-outline-secondary">إلغاء</a>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check"></i> تسجيل الكمية المستلمة
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
